@@ -613,7 +613,7 @@ class ESPComms(LifecycleNode):
 
         self.tailscale_connected = self.check_tailscale()
         self.battery_ok = not self.battery_ok # waiting for BMS
-        self.launch_complete = self.check_node_heartbeats()
+        self.launch_complete = self.check_node_heartbeats() #uncommented this line 
         # trim_auto and rudder_auto are already updated in autonomous_mode_callback
         
     def status_timer_callback(self):
