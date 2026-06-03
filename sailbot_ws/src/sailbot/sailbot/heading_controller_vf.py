@@ -479,10 +479,10 @@ class HeadingController(LifecycleNode):
     def speed_knots_callback(self, msg: Float64):
         if msg.data<2.0:
             self.too_slow_to_tack = True
-            self.current_rudder_limit = 15
+            self.current_rudder_limit = 20
         elif msg.data<4:
             self.too_slow_to_tack = False
-            self.current_rudder_limit = 23
+            self.current_rudder_limit = 25
         else:
             self.too_slow_to_tack = False
             self.current_rudder_limit = 30
