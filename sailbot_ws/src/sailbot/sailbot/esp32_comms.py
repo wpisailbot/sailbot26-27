@@ -285,7 +285,7 @@ class ESPComms(LifecycleNode):
 
         self.timer_pub = self.create_lifecycle_publisher(Empty, '/heartbeat/trim_tab_comms', 1)
         
-        # self.ballast_timer = self.create_timer(0.01, self.ballast_timer_callback)
+        self.esp_heartbeat = self.create_timer(1, self.esp_heatbeat_callback)
 
         try:
             self.ser = serial.Serial(serial_port, baud_rate, timeout=0.05)
@@ -921,7 +921,7 @@ class ESPComms(LifecycleNode):
             self.get_logger().info("Trim message is None, taking no action")
         
 
-    def ballast_timer_callback(self) -> None:
+    def esp_heatbeat_callback(self) -> None:
         """
         Timer callback function that sends a request to the ESP32 for the current position of the ballast and handles the response.
         
@@ -950,7 +950,7 @@ class ESPComms(LifecycleNode):
         """
 
         message = {
-            "get_ballast_pos": True
+            "get_heartbeat": True
         }
         message_string = json.dumps(message)+'\n'
         self.ser.write(message_string.encode())
@@ -964,23 +964,20 @@ class ESPComms(LifecycleNode):
         if line:
             try:
                 message = json.loads(line)
-
                 pos = Int16()
-                pos.data = message["ballast_pos"]
-                #self.get_logger().info(f"Received position: {pos.data}")
-                if(pos.data == 0):
-                    #self.get_logger().info("Ballast potentiometer is not working!")
-                    pass
+                pos.data = message["hearbeat"]
+                if(pos.data == 0 or pos.data != heartbeat):
+                    heartbeat_fail = heartbeat_fail + 1
+                    heartbeat = not(pos.data)
                 else:
-                    #self.get_logger().info(f"Ballast position: {pos.data}")
-                    pass
-                #publish even if it's broken, ballast_control will detect it
-                self.ballast_pos_publisher.publish(pos)
+                    heartbeat = not(heartbeat)
             except json.JSONDecodeError:
                 self.get_logger().warn("Error decoding JSON")
         else:
-            # self.get_logger().warn("No data received within the timeout period.")
-            pass
+            heartbeat_fail = heartbeat_fail + 1
+            
+        if heartbeat_fail > 5:
+            self.on_shutdown
     
     def publish_error(self, string: str):
         error_msg = String()
