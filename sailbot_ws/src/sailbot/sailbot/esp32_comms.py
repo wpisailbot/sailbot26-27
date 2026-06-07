@@ -86,6 +86,8 @@ class ESPComms(LifecycleNode):
     last_small_oscillation_times = []  
     last_roll_direction = 0           # -1 = port, 0 = neutral, 1 = starboard
     speed = 0.0
+    heartbeat = True
+    heartbeat_fail = 0
 
     # Wingsail LED display parameters
     status_timer: Optional[Timer] = None
@@ -971,6 +973,7 @@ class ESPComms(LifecycleNode):
                     heartbeat = not(pos.data)
                 else:
                     heartbeat = not(heartbeat)
+                    heartbeat_fail = 0
             except json.JSONDecodeError:
                 self.get_logger().warn("Error decoding JSON")
         else:
