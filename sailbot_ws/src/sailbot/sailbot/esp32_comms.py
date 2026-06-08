@@ -12,6 +12,7 @@ from time import time as get_time
 
 from std_msgs.msg import Int8, Int16, Empty, Float32, Float64, String, Bool
 from sailbot_msgs.msg import Wind, AutonomousMode, GeoPath, TrimState, BuoyDetectionStamped
+from sailbot_msgs.srv import RestartNode
 
 import serial
 import json
@@ -158,6 +159,9 @@ class ESPComms(LifecycleNode):
 
         self.heartbeat_timer: Optional[Timer]
         self.timer: Optional[Timer]
+        self.restart_cli = self.create_client(RestartNode, 'state_manager/restart_node')
+        while not self.cli.wait_for_service(timeout_sec=1.0):
+            self.get_logger().info('service not available, waiting again...')
 
     def set_parameters(self) -> None:
         self.declare_parameter('sailbot.rudder.angle_limit_deg', 30)
@@ -287,7 +291,7 @@ class ESPComms(LifecycleNode):
 
         self.timer_pub = self.create_lifecycle_publisher(Empty, '/heartbeat/trim_tab_comms', 1)
         
-        self.esp_heartbeat = self.create_timer(1, self.esp_heatbeat_callback)
+        self.esp_heartbeat = self.create_timer(1, self.esp_heartbeat_callback)
 
         try:
             self.ser = serial.Serial(serial_port, baud_rate, timeout=0.05)
@@ -922,8 +926,8 @@ class ESPComms(LifecycleNode):
         else:
             self.get_logger().info("Trim message is None, taking no action")
         
-
-    def esp_heatbeat_callback(self) -> None:
+    
+    def esp_heartbeat_callback(self) -> None:
         """
         Timer callback function that sends a request to the ESP32 for the current position of the ballast and handles the response.
         
@@ -983,7 +987,16 @@ class ESPComms(LifecycleNode):
             
         if self.heartbeat_fail > 5:
             self.get_logger().warn("Restarting ESp32 node")
-            self.on_shutdown
+            self.restart = RestartNode()
+            self.restart.node_name = "esp32_comms"
+            response = self.restart_cli.send_request(self.restart)
+            self.get_logger().info("esp32 restart: " + str(response.success) + ", " + response.message)
+            self.destroy_node()
+            rclpy.shutdown()
+            
+            
+            
+            
     
     def publish_error(self, string: str):
         error_msg = String()
