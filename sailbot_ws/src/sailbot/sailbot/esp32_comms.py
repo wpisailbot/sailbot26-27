@@ -160,8 +160,9 @@ class ESPComms(LifecycleNode):
         self.heartbeat_timer: Optional[Timer]
         self.timer: Optional[Timer]
         self.last_successful_write = get_time()
+
         self.restart_cli = self.create_client(RestartNode, 'state_manager/restart_node')
-        while not self.cli.wait_for_service(timeout_sec=1.0):
+        while not self.restart_cli.wait_for_service(timeout_sec=1.0):
             self.get_logger().info('service not available, waiting again...')
 
     def set_parameters(self) -> None:
