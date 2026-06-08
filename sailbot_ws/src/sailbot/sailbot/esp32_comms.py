@@ -116,6 +116,7 @@ class ESPComms(LifecycleNode):
     force_neutral_position = True
     could_be_tacking = False
     last_lift_state = TrimState.TRIM_STATE_MIN_LIFT
+    last_drag_state = TrimState.TRIM_STATE_MIN_LIFT
     rudder_angle_limit_deg = None
 
     request_tack_timer_duration = 3.0  # seconds
@@ -419,16 +420,39 @@ class ESPComms(LifecycleNode):
 
         msg = None
         trim_state_msg = TrimState()
-
-        force_tack = False
-        if(self.request_tack_override):
-            # Only tack if we're going upwind
-            if (0 <= relative_wind < 100) or (260 <= relative_wind < 365):
-                force_tack = True
+        if self.request_tack_override is True:
+            if self.last_lift_state == TrimState.TRIM_STATE_MAX_LIFT_PORT:
+                    # Max lift starboard
+                msg = {
+                    "state": "max_lift_starboard"
+                }
+                trim_state_msg.state = TrimState.TRIM_STATE_MAX_LIFT_STARBOARD
+                # self.get_logger().info("Max lift starboard")
             else:
-                self.get_logger().warn("Tack requested, but we're going downwind...")
-
-        if 25.0 <= relative_wind < 100 and force_tack is False:
+                    # Max lift port
+                msg = {
+                    "state": "max_lift_port"
+                }
+                trim_state_msg.state = TrimState.TRIM_STATE_MAX_LIFT_PORT
+                #self.get_logger().info("Max lift port")
+        if self.request_jibe_override is True:
+            if self.last_drag_state == TrimState.TRIM_STATE_MAX_DRAG_PORT:
+                    # Max drag starboard
+                msg = {
+                    "state": "max_drag_port"
+                }
+                trim_state_msg.state = TrimState.TRIM_STATE_MAX_DRAG_STARBOARD
+                self.last_drag_state = TrimState.TRIM_STATE_MAX_DRAG_STARBOARD
+                #self.get_logger().info("Max drag starboard")
+            else:
+                    # Max drag port
+                msg = {
+                    "state": "max_drag_starboard" 
+                }
+                trim_state_msg.state = TrimState.TRIM_STATE_MAX_DRAG_PORT
+                self.last_drag_state = TrimState.TRIM_STATE_MAX_DRAG_PORT
+                #self.get_logger().info("Max drag port")
+        elif 25.0 <= relative_wind < 100:
             # Max lift port
             msg = {
                 "state": "max_lift_port"
@@ -436,24 +460,24 @@ class ESPComms(LifecycleNode):
             trim_state_msg.state = TrimState.TRIM_STATE_MAX_LIFT_PORT
             self.last_lift_state = TrimState.TRIM_STATE_MAX_LIFT_PORT
             #self.get_logger().info("Max lift port")
-        elif 100 <= relative_wind < 180 and self.request_jibe_override is False:
+        elif 100 <= relative_wind < 180:
             # Max drag port
             msg = {
-                "state": "max_drag_starboard" # switched for testing, need to swap in trim_tab_client
+                "state": "max_drag_starboard"
             }
             trim_state_msg.state = TrimState.TRIM_STATE_MAX_DRAG_PORT
-            #self.last_state = TrimState.TRIM_STATE_MAX_DRAG_PORT
+            self.last_drag_state = TrimState.TRIM_STATE_MAX_DRAG_PORT
             #self.get_logger().info("Max drag port")
 
-        elif 180 <= relative_wind < 260 and self.request_jibe_override is False:
+        elif 180 <= relative_wind < 260:
             # Max drag starboard
             msg = {
                 "state": "max_drag_port"
             }
             trim_state_msg.state = TrimState.TRIM_STATE_MAX_DRAG_STARBOARD
-            #self.last_state = TrimState.TRIM_STATE_MAX_DRAG_STARBOARD
+            self.last_drag_state = TrimState.TRIM_STATE_MAX_DRAG_STARBOARD
             #self.get_logger().info("Max drag starboard")
-        elif 260 <= relative_wind < 335 and force_tack is False:
+        elif 260 <= relative_wind < 335:
             # Max lift starboard
             msg = {
                 "state": "max_lift_starboard"

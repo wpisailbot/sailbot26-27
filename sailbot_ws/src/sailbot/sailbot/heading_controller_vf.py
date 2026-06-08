@@ -908,12 +908,12 @@ class HeadingController(LifecycleNode):
             #     self.rudder_angle = 31
             # else:
             #     self.rudder_angle = -31
-            self.rudder_angle = 31*self.current_tack_dir # current_tack_dir should never be anything but 1 or -1
+            self.rudder_angle = 21*self.current_tack_dir # current_tack_dir should never be anything but 1 or -1
             self.request_tack_publisher.publish(Empty())
         
         # Ignore everything else for collision avoidance task
         if self.collision_avoidance_override:
-            self.rudder_angle = 30
+            self.rudder_angle = 20
 
         #self.get_logger().info(f"Computed rudder angle: {rudder_angle}")
         msg = Int16()
