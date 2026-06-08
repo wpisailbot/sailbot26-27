@@ -960,26 +960,29 @@ class ESPComms(LifecycleNode):
         try:
             line = self.ser.readline().decode('utf-8').rstrip()
         except:
+            self.heartbeat_fail = self.heartbeat_fail + 1
+            self.get_logger().warn("Serial Corruption")
             #serial corruption
             pass
         
         if line:
             try:
                 message = json.loads(line)
-                pos = Int16()
-                pos.data = message["hearbeat"]
-                if(pos.data == 0 or pos.data != heartbeat):
-                    heartbeat_fail = heartbeat_fail + 1
-                    heartbeat = not(pos.data)
+                pos = Bool()
+                pos.data = message["heartbeat"]
+                if(pos.data != self.heartbeat):
+                    self.heartbeat_fail = self.heartbeat_fail + 1
+                    self.heartbeat = not(pos.data)
                 else:
-                    heartbeat = not(heartbeat)
-                    heartbeat_fail = 0
+                    self.heartbeat = not(self.heartbeat)
+                    self.heartbeat_fail = 0
             except json.JSONDecodeError:
                 self.get_logger().warn("Error decoding JSON")
         else:
-            heartbeat_fail = heartbeat_fail + 1
+            self.heartbeat_fail = self.heartbeat_fail + 1
             
-        if heartbeat_fail > 5:
+        if self.heartbeat_fail > 5:
+            self.get_logger().warn("Restarting ESp32 node")
             self.on_shutdown
     
     def publish_error(self, string: str):
