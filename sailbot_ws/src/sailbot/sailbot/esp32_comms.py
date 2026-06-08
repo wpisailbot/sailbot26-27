@@ -990,8 +990,9 @@ class ESPComms(LifecycleNode):
             self.get_logger().warn("Restarting ESp32 node")
             self.restart = RestartNode()
             self.restart.node_name = "esp32_comms"
-            response = self.restart_cli.send_request(self.restart)
-            self.get_logger().info("esp32 restart: " + str(response.success) + ", " + response.message)
+            self.future = self.restart_cli.call_async(self.restart)
+            rclpy.spin_until_future_complete(self, self.future)
+            self.get_logger().info("esp32 restart: " + str(self.future.success) + ", " + self.future.message)
             self.destroy_node()
             rclpy.shutdown()
             
