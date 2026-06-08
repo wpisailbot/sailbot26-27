@@ -1246,7 +1246,7 @@ class NetworkComms(LifecycleNode):
         try:
             while context.is_active():
                 message_size = self.current_boat_state.ByteSize()
-                self.get_logger().info(f"Boat stat size:{message_size} bytes.")
+                #self.get_logger().info(f"Boat stat size:{message_size} bytes.")
                 yield self.current_boat_state
                 rate.sleep()
         finally:

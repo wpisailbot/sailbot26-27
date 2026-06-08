@@ -293,7 +293,9 @@ class ESPComms(LifecycleNode):
 
         self.timer_pub = self.create_lifecycle_publisher(Empty, '/heartbeat/trim_tab_comms', 1)
         
+        self.get_logger().info("Creating esp_heartbeat timer")
         self.esp_heartbeat = self.create_timer(1, self.esp_heartbeat_callback)
+        self.get_logger().info("Successfully created esp_heartbeat timer")
 
         try:
             self.ser = serial.Serial(serial_port, baud_rate, timeout=0.05, write_timeout=1.0)
@@ -582,9 +584,9 @@ class ESPComms(LifecycleNode):
             time_since_heartbeat = current_time - last_time
             
             if time_since_heartbeat > self.heartbeat_timeout:
-                self.get_logger().warn(
-                    f"Node {node_name} is DEAD! Last heartbeat {time_since_heartbeat:.1f}s ago"
-                )
+              #  self.get_logger().warn(
+              #      f"Node {node_name} is DEAD! Last heartbeat {time_since_heartbeat:.1f}s ago"
+               # )
                 return True  # Problem detected!
         
         # All nodes are alive
@@ -977,6 +979,7 @@ class ESPComms(LifecycleNode):
                 pos.data = message["heartbeat"]
                 if(pos.data != self.heartbeat):
                     self.heartbeat_fail = self.heartbeat_fail + 1
+                    self.get_logger().warn("data doesnt match")
                     self.heartbeat = not(pos.data)
                 else:
                     self.heartbeat = not(self.heartbeat)
@@ -985,16 +988,19 @@ class ESPComms(LifecycleNode):
                 self.get_logger().warn("Error decoding JSON")
         else:
             self.heartbeat_fail = self.heartbeat_fail + 1
+            self.get_logger().warn("No line")
             
         if self.heartbeat_fail > 5:
             self.get_logger().warn("Restarting ESp32 node")
-            self.restart = RestartNode()
-            self.restart.node_name = "esp32_comms"
-            self.future = self.restart_cli.call_async(self.restart)
-            rclpy.spin_until_future_complete(self, self.future)
-            self.get_logger().info("esp32 restart: " + str(self.future.success) + ", " + self.future.message)
-            self.destroy_node()
-            rclpy.shutdown()
+
+            restart = RestartNode.Request()
+            restart.node_name = "esp32_comms"
+            future = self.restart_cli.call_async(restart)
+            #rclpy.spin_until_future_complete(self, self.future)
+            self.heartbeat_fail = 0
+            self.get_logger().info("esp32 restart: " + ", " + future.message)
+
+
             
             
     def restart_serial(self):
