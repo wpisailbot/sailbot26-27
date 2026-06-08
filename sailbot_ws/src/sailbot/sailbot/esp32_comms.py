@@ -159,6 +159,7 @@ class ESPComms(LifecycleNode):
 
         self.heartbeat_timer: Optional[Timer]
         self.timer: Optional[Timer]
+        self.last_successful_write = get_time()
         self.restart_cli = self.create_client(RestartNode, 'state_manager/restart_node')
         while not self.cli.wait_for_service(timeout_sec=1.0):
             self.get_logger().info('service not available, waiting again...')
@@ -294,9 +295,14 @@ class ESPComms(LifecycleNode):
         self.esp_heartbeat = self.create_timer(1, self.esp_heartbeat_callback)
 
         try:
-            self.ser = serial.Serial(serial_port, baud_rate, timeout=0.05)
+            self.ser = serial.Serial(serial_port, baud_rate, timeout=0.05, write_timeout=1.0)
         except Exception as e:
             self.get_logger().info(str(e))
+            
+        self.serial_watchdog_timer = self.create_timer(
+            1.0,
+            self.serial_watchdog_callback
+        )
         return TransitionCallbackReturn.SUCCESS
 
     def on_activate(self, state: State) -> TransitionCallbackReturn:
@@ -500,8 +506,7 @@ class ESPComms(LifecycleNode):
         
         if(msg is not None):
             self.trim_state_debug_publisher.publish(trim_state_msg)
-            message_string = json.dumps(msg)+'\n'
-            self.ser.write(message_string.encode())
+            self.serial_write(msg)
         else:
             self.get_logger().info("Trim message is None, taking no action")
 
@@ -514,8 +519,7 @@ class ESPComms(LifecycleNode):
             "angle": angle,
             "timestamp": this_time
         }
-        message_string = json.dumps(message)+'\n'
-        self.ser.write(message_string.encode())
+        self.serial_write(message)
 
     # Wingsail LED display helper functions
     def send_system_status(self, tailscale_connected: bool, buoy_detected: bool, 
@@ -529,8 +533,8 @@ class ESPComms(LifecycleNode):
             "battery_ok": battery_ok,
             "reach_buoy": reach_buoy,
         }
-        message_string = json.dumps(message) + '\n'
-        self.ser.write(message_string.encode())
+        self.serial_write(message)
+
 
     
     def check_tailscale(self) -> bool:
@@ -689,8 +693,7 @@ class ESPComms(LifecycleNode):
         message = {
             "ballast_pwm": pwm
         }
-        message_string = json.dumps(message)+'\n'
-        self.ser.write(message_string.encode())
+        self.serial_write(message)
     
     def damper_check_callback(self):
         """Check if damper should activate based on IMU data"""
@@ -861,8 +864,7 @@ class ESPComms(LifecycleNode):
         roll_dict = {
                 "roll": msg.data
         }
-        message_string = json.dumps(roll_dict)+'\n'
-        self.ser.write(message_string.encode())
+        self.serial_write(roll_dict)
 
         # Store roll readings for damper control
         current_time = get_time()
@@ -921,8 +923,7 @@ class ESPComms(LifecycleNode):
         
         if(msg is not None):
             self.trim_state_debug_publisher.publish(trim_state_msg)
-            message_string = json.dumps(msg)+'\n'
-            self.ser.write(message_string.encode())
+            self.serial_write(msg)
         else:
             self.get_logger().info("Trim message is None, taking no action")
         
@@ -958,8 +959,7 @@ class ESPComms(LifecycleNode):
         message = {
             "get_heartbeat": True
         }
-        message_string = json.dumps(message)+'\n'
-        self.ser.write(message_string.encode())
+        self.serial_write(message)
         line = None
         try:
             line = self.ser.readline().decode('utf-8').rstrip()
@@ -995,7 +995,50 @@ class ESPComms(LifecycleNode):
             rclpy.shutdown()
             
             
-            
+    def restart_serial(self):
+        self.get_logger().warn("Restarting serial connection")
+
+        try:
+            if hasattr(self, "ser") and self.ser:
+                self.ser.close()
+        except Exception:
+            pass
+
+        try:
+            self.ser = serial.Serial(
+                serial_port,
+                baud_rate,
+                timeout=0.05,
+                write_timeout=1.0
+            )
+
+            self.ser.reset_input_buffer()
+            self.ser.reset_output_buffer()
+
+            self.get_logger().info("Serial connection restarted")
+
+        except Exception as e:
+            self.get_logger().error(f"Failed reopening serial port: {e}")
+
+    def serial_write(self, message_dict):
+        message_string = json.dumps(message_dict) + '\n'
+
+        try:
+            self.ser.write(message_string.encode())
+            self.last_successful_write = get_time()
+
+        except Exception as e:
+            self.get_logger().error(f"Serial write failed: {e}")
+            self.restart_serial()
+
+    def serial_watchdog_callback(self):
+        age = get_time() - self.last_successful_write
+
+        if age > 5.0:
+            self.get_logger().error(
+                f"No successful serial writes for {age:.1f}s"
+            )
+            self.restart_serial()        
             
     
     def publish_error(self, string: str):
