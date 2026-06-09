@@ -805,7 +805,7 @@ class ESPComms(LifecycleNode):
                 if (current_time - t) <= self.oscillation_time_window
             ]
 
-            # should_activate = False 
+            should_activate = False 
             recent_oscillation_count = len(self.last_oscillation_times)
             recent_small_oscillation_count = len(self.last_small_oscillation_times)
             if recent_oscillation_count >= self.oscillation_count_threshold:
