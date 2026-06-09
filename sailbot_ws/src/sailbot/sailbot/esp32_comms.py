@@ -923,10 +923,9 @@ class ESPComms(LifecycleNode):
             self.request_tack_timer = self.create_timer(self.request_tack_timer_duration, self.request_tack_timer_callback)
 
     def request_jibe_callback(self, msg: Float64) -> None:
-        self.request_jibe_override = True
-        if self.request_jibe_timer is not None:
-            self.request_jibe_timer.cancel()
-        self.request_jibe_timer = self.create_timer(self.request_jibe_timer_duration, self.request_jibe_timer_callback)
+        if self.request_jibe_timer is None:
+            self.request_jibe_override = True
+            self.request_jibe_timer = self.create_timer(self.request_jibe_timer_duration, self.request_jibe_timer_callback)
 
         trim_state_msg = TrimState()
         if(msg.data>0):
