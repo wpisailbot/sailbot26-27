@@ -273,7 +273,7 @@ class PathFollower(LifecycleNode):
         self.declare_parameter('sailbot.navigation.buoy_snap_distance_meters', 10.0)
 
 
-        self.declare_parameter('map_name', 'quinsigamond')
+        self.declare_parameter('map_name', 'ithaca')
 
     def get_parameters(self) -> None:
         self.buoy_rounding_distance_meters = self.get_parameter('sailbot.pathfinding.buoy_rounding_distance_meters').get_parameter_value().double_value
@@ -904,26 +904,26 @@ class PathFollower(LifecycleNode):
             self.get_logger().info("Adding waypoints!")
             self.made_waypoints = True
             p1 = Waypoint()
-            p1.point.latitude = 42.845847
-            p1.point.longitude = -70.977440
+            p1.point.latitude = 42.46922
+            p1.point.longitude = -76.50317
             p1.type = Waypoint.WAYPOINT_TYPE_INTERSECT
             self.single_waypoint_callback(p1)
 
             p2 = Waypoint()
-            p2.point.latitude = 42.845453
-            p2.point.longitude = -70.977357
+            p2.point.latitude = 42.46921
+            p2.point.longitude = -76.50339
             p2.type = Waypoint.WAYPOINT_TYPE_INTERSECT
             self.single_waypoint_callback(p2)
 
             p3 = Waypoint()
-            p3.point.latitude = 42.845555
-            p3.point.longitude = -70.977976
+            p3.point.latitude = 42.46902
+            p3.point.longitude = -76.50331
             p3.type = Waypoint.WAYPOINT_TYPE_INTERSECT
             self.single_waypoint_callback(p3)
 
             p4 = Waypoint()
-            p4.point.latitude = 42.845864
-            p4.point.longitude = -70.977925
+            p4.point.latitude = 42.46902
+            p4.point.longitude = -76.50308
             p4.type = Waypoint.WAYPOINT_TYPE_INTERSECT
             self.single_waypoint_callback(p4)
 
