@@ -248,7 +248,6 @@ class PathFollower(LifecycleNode):
         self.grid_msg = grid_msg
         self.get_logger().info("Setting map")
         future = self.set_map_cli.call_async(set_map_req)
-        rclpy.spin_until_future_complete(self, future)
 
         self.get_logger().info("Map setup done")
 
@@ -260,6 +259,7 @@ class PathFollower(LifecycleNode):
         while not self.set_threat_cli.wait_for_service(timeout_sec=1.0):
             self.get_logger().info('set_threat service not available, waiting again...')
         
+        rclpy.spin_until_future_complete(self, future)
         self.get_logger().info("Path follower node setup complete")
 
 
@@ -904,26 +904,26 @@ class PathFollower(LifecycleNode):
             self.get_logger().info("Adding waypoints!")
             self.made_waypoints = True
             p1 = Waypoint()
-            p1.point.latitude = 42.46922
-            p1.point.longitude = -76.50317
+            p1.point.latitude = 42.469667
+            p1.point.longitude = -76.503983
             p1.type = Waypoint.WAYPOINT_TYPE_INTERSECT
             self.single_waypoint_callback(p1)
 
             p2 = Waypoint()
-            p2.point.latitude = 42.46921
-            p2.point.longitude = -76.50339
+            p2.point.latitude = 42.469600
+            p2.point.longitude = -76.504417
             p2.type = Waypoint.WAYPOINT_TYPE_INTERSECT
             self.single_waypoint_callback(p2)
 
             p3 = Waypoint()
-            p3.point.latitude = 42.46902
-            p3.point.longitude = -76.50331
+            p3.point.latitude = 42.469267
+            p3.point.longitude = -76.504383
             p3.type = Waypoint.WAYPOINT_TYPE_INTERSECT
             self.single_waypoint_callback(p3)
 
             p4 = Waypoint()
-            p4.point.latitude = 42.46902
-            p4.point.longitude = -76.50308
+            p4.point.latitude = 42.469283
+            p4.point.longitude = -76.504000
             p4.type = Waypoint.WAYPOINT_TYPE_INTERSECT
             self.single_waypoint_callback(p4)
 

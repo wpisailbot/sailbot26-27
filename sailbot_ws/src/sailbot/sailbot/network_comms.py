@@ -471,25 +471,25 @@ class NetworkComms(LifecycleNode):
 
         self.current_boat_state.current_autonomous_mode = boat_state_pb2.AutonomousMode.AUTONOMOUS_MODE_NONE
         # a = boat_state_pb2.Point()
-        # a.latitude = 5.1
-        # a.longitude = 4.1
+        # a.latitude = 42.46922
+        # a.longitude = -76.50317
         # b=boat_state_pb2.Point()
-        # b.latitude = 5.2
-        # b.longitude = 4.1
+        # b.latitude = 42.46921
+        # b.longitude = -76.50339
         # self.current_boat_state.current_path.points.append(a)
         # self.current_boat_state.current_path.points.append(b)
         # c = boat_state_pb2.Point()
-        # c.latitude = 4.9
-        # c.longitude = 3.9
+        # c.latitude = 42.46902
+        # c.longitude = -76.50331
         # d=boat_state_pb2.Point()
-        # d.latitude = 4.8
-        # d.longitude = 3.9
-        # e=boat_state_pb2.Point()
-        # e.latitude = 4.7
-        # e.longitude = 3.8
+        # d.latitude = 42.46921
+        # d.longitude = -76.50331
+        # # e=boat_state_pb2.Point()
+        # # e.latitude = 4.7
+        # # e.longitude = 3.8
         # self.current_boat_state.previous_positions.points.append(c)
         # self.current_boat_state.previous_positions.points.append(d)
-        # self.current_boat_state.previous_positions.points.append(e)
+        # # self.current_boat_state.previous_positions.points.append(e)
         
         self.last_pwm_heartbeat = -1
         self.last_ctrl_heartbeat = -1
