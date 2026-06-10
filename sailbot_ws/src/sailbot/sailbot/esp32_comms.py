@@ -1020,7 +1020,7 @@ class ESPComms(LifecycleNode):
             future = self.restart_cli.call_async(restart)
             #rclpy.spin_until_future_complete(self, self.future)
             self.heartbeat_fail = 0
-            self.get_logger().info("esp32 restart: " + ", " + future.message)
+            #self.get_logger().info("esp32 restart: " + ", " + future.message)
 
 
             

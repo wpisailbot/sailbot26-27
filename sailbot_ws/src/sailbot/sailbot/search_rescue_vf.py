@@ -250,7 +250,7 @@ class PathFollower(LifecycleNode):
         self.grid_msg = grid_msg
         self.get_logger().info("Setting map")
         future = self.set_map_cli.call_async(set_map_req)
-        rclpy.spin_until_future_complete(self, future)
+        
 
         self.get_logger().info("Map setup done")
 
@@ -261,13 +261,13 @@ class PathFollower(LifecycleNode):
         self.set_threat_cli = self.create_client(SetThreat, 'set_threat', callback_group=self.service_client_callback_group)
         while not self.set_threat_cli.wait_for_service(timeout_sec=1.0):
             self.get_logger().info('set_threat service not available, waiting again...')
-        
+        rclpy.spin_until_future_complete(self, future)
         self.get_logger().info("Path follower node setup complete")
 
 
     def set_parameters(self) -> None:
         self.declare_parameter('sailbot.pathfinding.min_path_recalculation_interval_seconds', 10.0)
-        self.declare_parameter('map_name', 'quinsigamond')
+        self.declare_parameter('map_name', 'Ithaca')
 
     def get_parameters(self) -> None:
         self.min_path_recalculation_interval_seconds = self.get_parameter('sailbot.pathfinding.min_path_recalculation_interval_seconds').get_parameter_value().double_value
