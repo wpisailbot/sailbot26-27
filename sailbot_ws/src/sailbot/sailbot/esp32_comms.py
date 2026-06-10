@@ -21,6 +21,7 @@ import serial.tools.list_ports
 import subprocess
 import can  # pip install python-can
 from phoenix6 import hardware, controls, configs, signals
+from geopy.distance import geodesic
             
 
 serial_port = '/dev/ttyTHS1'
@@ -622,15 +623,24 @@ class ESPComms(LifecycleNode):
         self.last_heartbeat_times[node_name] = get_time()
 
     def buoy_detection_callback(self, msg: BuoyDetectionStamped):
-        """Called whenever a buoy is detected"""
-        self.last_buoy_detection_time = get_time()
-        self.buoy_detected = True
-        
-        # self.get_logger().info(
-        #     f"Buoy detected! ID: {msg.id}, "
-        #     f"Lat: {msg.position.latitude:.6f}, "
-        #     f"Lon: {msg.position.longitude:.6f}"
-        # )
+        self.current_buoy_positions[msg.id] = msg
+        current_time = get_time.time()
+        self.current_buoy_times[msg.id] = current_time
+
+        dist = geodesic((msg.position.latitude, msg.position.longitude), (self.latitude, self.longitude)).meters
+
+        # self.get_logger().info("Buoy distance: "+str(dist))
+
+        if(dist<10.0):
+            # self.get_logger().info("Reached buoy!!!")
+            bool_msg = Bool()
+            bool_msg.data = True
+            self.reached_buoy_publisher.publish(bool_msg)
+            self.path_to_buoy(msg)
+            self.last_exact_points = self.exact_points.copy()
+            self.last_grid_points = self.grid_points.copy()
+            self.recalculate_path_from_exact_points()
+            self.last_buoy_calculation_time = current_time
 
     def reach_buoy_callback(self, msg: Bool):
         """Called when we reach the buoy"""
