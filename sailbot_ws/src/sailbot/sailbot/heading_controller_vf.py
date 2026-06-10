@@ -162,6 +162,9 @@ class HeadingController(LifecycleNode):
     current_tack_dir = 1
     current_jibe_dir = 1
 
+    jibe_fallback_active = False
+    jibe_fallback_end_time = 0
+
     collision_avoidance_timer: Timer = None
     collision_avoidance_timer_duration = 1.0
     collision_avoidance_override = False
@@ -470,6 +473,18 @@ class HeadingController(LifecycleNode):
 
         if(time.time()-self.this_tack_start_time > 10.0):
             self.allow_tack = False
+
+            self.get_logger().warn("Tack failed, requesting jibe")
+
+            self.current_jibe_dir = self.current_tack_dir
+            self.request_jibe_publisher.publish(
+                Float32(data=float(self.current_jibe_dir))
+            )
+
+            self.jibe_fallback_active = True
+            self.jibe_fallback_end_time = time.time() + 8.0
+
+            self.this_tack_start_time = time.time()
 
         self.request_tack_override = True
         if self.request_tack_timer is not None:
@@ -782,6 +797,14 @@ class HeadingController(LifecycleNode):
             #self.get_logger().info("Not in auto")
             return
         
+        if self.jibe_fallback_active:
+            if time.time() > self.jibe_fallback_end_time:
+                self.jibe_fallback_active = False
+            else:
+                msg = Int16()
+                msg.data = -25 * self.current_jibe_dir
+                self.rudder_angle_publisher.publish(msg)
+                return
         if(self.path_segment is None):
             msg = Int16()
             msg.data = int(0)
