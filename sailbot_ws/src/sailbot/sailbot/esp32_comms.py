@@ -646,7 +646,7 @@ class ESPComms(LifecycleNode):
         time_since_buoy = current_time - self.last_buoy_detection_time
         
         # Buoy detected if we saw one in last 5 seconds
-        self.buoy_detected = (time_since_buoy < 10.0)
+        self.buoy_detected = (time_since_buoy < 1.0)
 
         self.tailscale_connected = self.check_tailscale()
         self.battery_ok = not self.battery_ok # waiting for BMS
