@@ -329,13 +329,14 @@ class PathFollower(LifecycleNode):
                 self.request_replan_callback,
                 10,
                 callback_group = self.subscription_callback_group)
-        
+            
+            self.get_logger().info("Path following node configured")
+            
         except Exception as e:
-            self.get_logger().info("Error in configure")
-            self.get_logger().info(str(e))
+            self.get_logger().warn("Error in configure")
+            self.get_logger().warn(str(e))
             raise(e)
-        
-        self.get_logger().info("Path following node configured")
+    
         
         return super().on_configure(state)
 
