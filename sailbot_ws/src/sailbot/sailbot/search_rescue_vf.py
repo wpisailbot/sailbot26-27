@@ -331,7 +331,7 @@ class PathFollower(LifecycleNode):
                 callback_group = self.subscription_callback_group)
             
             self.get_logger().info("Path following node configured")
-            
+
         except Exception as e:
             self.get_logger().warn("Error in configure")
             self.get_logger().warn(str(e))
@@ -503,7 +503,6 @@ class PathFollower(LifecycleNode):
             #    start_point = geodesic(meters=half_chord).destination((midpoint.latitude, midpoint.longitude), (perpendicular_bearing + 180) % 360)
             # self.get_logger().info(f"start point: {start_point}")
             # self.get_logger().info(f"end point: {end_point}")
-
 
             self.exact_points.append(GeoPoint(latitude=start_point.latitude, longitude=start_point.longitude))
             self.exact_points.append(GeoPoint(latitude=half_to_start.latitude, longitude=half_to_start.longitude))
