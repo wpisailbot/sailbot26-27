@@ -166,7 +166,7 @@ class HeadingController(LifecycleNode):
     jibe_fallback_end_time = 0
 
     collision_avoidance_timer: Timer = None
-    collision_avoidance_timer_duration = 5.0
+    collision_avoidance_timer_duration = 3.0
     collision_avoidance_override = False
 
     def __init__(self):
