@@ -132,6 +132,9 @@ class ESPComms(LifecycleNode):
 
     request_jibe_override = False
 
+    current_buoy_positions = {}
+    current_buoy_times = {}
+
     def __init__(self):
         super(ESPComms, self).__init__('esp32_comms')
 
