@@ -13,6 +13,7 @@ from time import time as get_time
 from std_msgs.msg import Int8, Int16, Empty, Float32, Float64, String, Bool
 from sailbot_msgs.msg import Wind, AutonomousMode, GeoPath, TrimState, BuoyDetectionStamped
 from sailbot_msgs.srv import RestartNode
+from geopy.distance import geodesic
 
 import serial
 import json
@@ -234,6 +235,7 @@ class ESPComms(LifecycleNode):
         self.damper_mode_subscription = self.create_subscription(Empty, 'damper_mode', self.damper_mode_callback, 10)
         # uncomment this when the fix works
         self.reach_buoy_subscription = self.create_subscription(Bool, 'reached_buoy', self.reach_buoy_callback, 10)
+        self.collision_avoidance_publisher = self.create_lifecycle_publisher(Empty, 'collision_avoidance_trigger', 10) 
         
         self.damper_check_timer = self.create_timer(0.5,self.damper_check_callback)
 
@@ -633,14 +635,9 @@ class ESPComms(LifecycleNode):
 
         if(dist<10.0):
             # self.get_logger().info("Reached buoy!!!")
-            bool_msg = Bool()
-            bool_msg.data = True
-            self.reached_buoy_publisher.publish(bool_msg)
-            self.path_to_buoy(msg)
-            self.last_exact_points = self.exact_points.copy()
-            self.last_grid_points = self.grid_points.copy()
-            self.recalculate_path_from_exact_points()
-            self.last_buoy_calculation_time = current_time
+            self.current_buoy_positions[msg.id] = msg
+            self.current_buoy_times[msg.id] = get_time.time()
+            self.collision_avoidance_publisher.publish(Empty())
 
     def reach_buoy_callback(self, msg: Bool):
         """Called when we reach the buoy"""
