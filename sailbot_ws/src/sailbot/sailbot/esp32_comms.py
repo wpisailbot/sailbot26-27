@@ -23,6 +23,7 @@ import subprocess
 import can  # pip install python-can
 from phoenix6 import hardware, controls, configs, signals
 from geopy.distance import geodesic
+from sensor_msgs.msg import NavSatFix
             
 
 serial_port = '/dev/ttyTHS1'
@@ -32,6 +33,8 @@ baud_rate = 115200
 angle = 0
 wind_dir = 0.0
 battery_level = 100
+
+latitude, longitude = 42.84456, -70.97622
 
 def find_esp32_serial_ports() -> list:
     # Common VID:PID pairs for USB-to-Serial adapters used with ESP32
@@ -292,6 +295,12 @@ class ESPComms(LifecycleNode):
             Empty,
             'request_tack',
             self.request_tack_callback,
+            10)
+        
+        self.navsat_subscription = self.create_subscription(
+            NavSatFix,
+            'airmar_data/lat_long',
+            self.lat_long_callback,
             10)
         
         self.request_jibe_subscription = self.create_subscription(Float32, 'request_jibe', self.request_jibe_callback, 10)
@@ -626,6 +635,11 @@ class ESPComms(LifecycleNode):
     def heartbeat_callback(self, msg: Empty, node_name: str):
         """Called whenever a node sends a heartbeat - just update timestamp"""
         self.last_heartbeat_times[node_name] = get_time()
+
+    def lat_long_callback(self, msg: NavSatFix):
+        #self.get_logger().info(f"Got latlong: {msg.latitude}, {msg.longitude}")
+        self.current_boat_state.latitude = msg.latitude
+        self.current_boat_state.longitude = msg.longitude
 
     def buoy_detection_callback(self, msg: BuoyDetectionStamped):
         self.current_buoy_positions[msg.id] = msg
