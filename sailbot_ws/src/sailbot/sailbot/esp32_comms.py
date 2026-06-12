@@ -629,7 +629,7 @@ class ESPComms(LifecycleNode):
 
     def buoy_detection_callback(self, msg: BuoyDetectionStamped):
         self.current_buoy_positions[msg.id] = msg
-        current_time = get_time.time()
+        current_time = get_time()
         self.current_buoy_times[msg.id] = current_time
 
         dist = geodesic((msg.position.latitude, msg.position.longitude), (self.latitude, self.longitude)).meters
