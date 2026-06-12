@@ -650,7 +650,7 @@ class ESPComms(LifecycleNode):
 
         self.get_logger().warn("Buoy distance: "+str(dist))
 
-        if(dist<1000.0):
+        if(dist<10.0 and dist > 2.0):
             self.get_logger().info("Collision Detected")
             self.current_buoy_positions[msg.id] = msg
             self.current_buoy_times[msg.id] = get_time()
