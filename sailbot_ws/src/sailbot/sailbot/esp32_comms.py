@@ -646,6 +646,8 @@ class ESPComms(LifecycleNode):
         current_time = get_time()
         self.current_buoy_times[msg.id] = current_time
 
+        self.buoy_detected = True
+
         dist = geodesic((msg.position.latitude, msg.position.longitude), (self.latitude, self.longitude)).meters
 
         self.get_logger().warn("Buoy distance: "+str(dist))
