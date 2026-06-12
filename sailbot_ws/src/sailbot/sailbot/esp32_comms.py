@@ -638,8 +638,8 @@ class ESPComms(LifecycleNode):
 
     def lat_long_callback(self, msg: NavSatFix):
         #self.get_logger().info(f"Got latlong: {msg.latitude}, {msg.longitude}")
-        self.current_boat_state.latitude = msg.latitude
-        self.current_boat_state.longitude = msg.longitude
+        self.latitude = msg.latitude
+        self.longitude = msg.longitude
 
     def buoy_detection_callback(self, msg: BuoyDetectionStamped):
         self.current_buoy_positions[msg.id] = msg
