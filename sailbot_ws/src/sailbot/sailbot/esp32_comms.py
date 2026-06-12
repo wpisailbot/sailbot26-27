@@ -653,7 +653,7 @@ class ESPComms(LifecycleNode):
         if(dist<1000.0):
             self.get_logger().info("Collision Detected")
             self.current_buoy_positions[msg.id] = msg
-            self.current_buoy_times[msg.id] = get_time.time()
+            self.current_buoy_times[msg.id] = get_time()
             self.collision_avoidance_publisher.publish(Empty())
 
     def reach_buoy_callback(self, msg: Bool):
