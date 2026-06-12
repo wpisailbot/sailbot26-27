@@ -631,10 +631,10 @@ class ESPComms(LifecycleNode):
 
         dist = geodesic((msg.position.latitude, msg.position.longitude), (self.latitude, self.longitude)).meters
 
-        # self.get_logger().info("Buoy distance: "+str(dist))
+        self.get_logger().warn("Buoy distance: "+str(dist))
 
-        if(dist<10.0):
-            # self.get_logger().info("Reached buoy!!!")
+        if(dist<1000.0):
+            self.get_logger().info("Collision Detected")
             self.current_buoy_positions[msg.id] = msg
             self.current_buoy_times[msg.id] = get_time.time()
             self.collision_avoidance_publisher.publish(Empty())
