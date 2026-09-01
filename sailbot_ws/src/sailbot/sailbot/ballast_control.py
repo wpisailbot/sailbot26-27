@@ -23,6 +23,8 @@ def make_json_string(json_msg):
 def bound(low, high, value):
     return max(low, min(high, value))
 
+"CURRENT SYSTEM DOES NOT HAVE A BALLAST"
+
 class BallastControl(LifecycleNode):
     """
     A ROS 2 lifecycle node for controlling the ballast system of a sailboat, handling dynamic positioning based on sensor input

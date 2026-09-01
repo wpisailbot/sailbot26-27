@@ -101,7 +101,6 @@ class ESPComms(LifecycleNode):
     reach_buoy = False
     last_buoy_detection_time = 0.0
 
-
     last_winds = []
     autonomous_mode = 0
     force_neutral_position = True
@@ -243,8 +242,6 @@ class ESPComms(LifecycleNode):
         
         self.request_jibe_subscription = self.create_subscription(Float32, 'request_jibe', self.request_jibe_callback, 10)
 
-        
-
         self.timer_pub = self.create_lifecycle_publisher(Empty, '/heartbeat/trim_tab_comms', 1)
         
         self.ballast_timer = self.create_timer(0.01, self.ballast_timer_callback)
@@ -260,12 +257,10 @@ class ESPComms(LifecycleNode):
         # Start publishers or timers
         return super().on_activate(state)
 
-
     def on_deactivate(self, state: State) -> TransitionCallbackReturn:
         self.get_logger().info("Deactivating...")
         return super().on_deactivate(state)
         
-
     def on_cleanup(self, state: State) -> TransitionCallbackReturn:
         self.get_logger().info("Cleaning up...")
         # Destroy subscribers, publishers, and timers
