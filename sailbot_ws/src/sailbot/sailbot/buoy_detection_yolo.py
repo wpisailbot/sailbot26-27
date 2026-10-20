@@ -351,6 +351,7 @@ class BuoyDetectionYOLO(Node):
             return
 
         self.zed.retrieve_image(self.image_zed, sl.VIEW.LEFT, sl.MEM.CPU)
+        
         self.zed.retrieve_measure(self.depth_zed, sl.MEASURE.DEPTH, sl.MEM.CPU)
 
         frame = self.image_zed.get_data()

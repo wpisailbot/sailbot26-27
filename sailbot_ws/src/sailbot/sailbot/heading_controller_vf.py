@@ -149,7 +149,7 @@ class HeadingController(LifecycleNode):
     
     allow_tack = True
     too_slow_to_tack = True
-    current_rudder_limit = 15
+    current_rudder_limit = 30
 
     request_tack_timer_duration = 3.0  # seconds
     request_tack_timer: Timer = None
