@@ -67,7 +67,7 @@ buoy_detection_yolo:
         buoy_detection_lifetime_seconds: 3.0
         yolo:
           engine_path: "/home/sailbot/Downloads/yolobuoyV2-engine-validation/my_model_fp16.engine"
-          conf_threshold: 0.25
+          conf_threshold: 0.35
           iou_threshold: 0.45
           imgsz: 640
           device: "0"
