@@ -7,9 +7,7 @@ This package leverages ROS2's [managed lifecycle nodes](https://design.ros2.org/
 Currently, there are ten nodes in this package, of which six have been ported to lifecycle nodes. The nodes
 
 - `airmar_reader`
-- `ballast_control`
 - `network_comms`
-- `pwm_controller`
 - `trim_tab_comms`
 - `webRTC_server`
 
@@ -28,9 +26,7 @@ have not been fully reimplemented, and are not yet managed.
 The function of each of the nodes is described below:
 
 - `airmar_reader`: Reads NMEA 0183 messages from a [Maretron NMEA 2000 usb gateway](https://www.maretron.com/products/usb100-nmea-2000-usb-gateway/), which translates NMEA 2000 messages from the onboard [Airmar 220WX weatherstation](https://www.airmar.com/Product/220WX).
-- `ballast_control`: Implements a P controller for the sliding-rail ballast
 - `network_comms`: Runs a gRPC server to interface with active [telemetry clients](https://github.com/wpisailbot/sailbot_telemetry_flutter). Message and service formats are defined [here](https://github.com/wpisailbot/telemetry_messages).
-- `pwm_controller`: Controls ballast motor speed and rudder angle through a PWM hat attached to the Jetson Nano's GPIO interface.
 - `trim_tab_comms`: Runs a websocket server on a wifi AP to interface with the [trim-tab controller](https://github.com/wpisailbot/trim_tab_client) in the wingsail. This depends on the existance of this AP (set to be created when the Jetson boots) and on an Avahi service advertized over this AP. Messages are passed in protobuf formats defined [here](https://github.com/wpisailbot/trim_tab_messages).
 - `webRTC_server` (incomplete): Runs a webRTC server to stream video from the onboard [ZED 2 camera](https://store.stereolabs.com/products/zed-2) to telemetry clients.
 

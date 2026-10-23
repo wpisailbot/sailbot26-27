@@ -24,7 +24,6 @@ graph TB
         subgraph "Control System"
             HEAD_CTRL_VF[heading_controller_vf<br/>Heading Control<br/>Fuzzy Logic<br/>Vector Field Integration]
             HEAD_CTRL[heading_controller<br/>Basic Heading Control<br/>PID Control<br/>Rudder Commands]
-            BALLAST[ballast_control<br/>Ballast Management<br/>Auto-positioning<br/>Stability Control]
         end
         
         subgraph "Sensor Processing"
@@ -62,7 +61,6 @@ graph TB
     NETWORK -->|single_waypoint| PATH_FOL_VF
     NETWORK -->|autonomous_mode| HEAD_CTRL_VF
     NETWORK -->|control commands| ESP32
-    NETWORK -->|ballast_position| BALLAST
     
     PATH_GEN -->|current_path| PATH_FOL_VF
     PATH_FOL_VF -->|target_position| HEAD_CTRL_VF
@@ -101,7 +99,7 @@ graph TB
     
     class FLUTTER,FLUTTER_COMPONENTS flutter
     class GRPC_PORT grpc
-    class NETWORK,PATH_GEN,PATH_FOL_VF,STATION_VF,SEARCH_VF,COLLISION_VF,HEAD_CTRL_VF,HEAD_CTRL,BALLAST,AIRMAR,WIND_SMOOTH,ESP32 lifecycle
+    class NETWORK,PATH_GEN,PATH_FOL_VF,STATION_VF,SEARCH_VF,COLLISION_VF,HEAD_CTRL_VF,HEAD_CTRL,AIRMAR,WIND_SMOOTH,ESP32 lifecycle
     class STATE_MGR,HEAD_SELECT,FAKE_MOVE,BUOY_DETECT standard
     class PWM,TRIM_TAB,SENSORS hardware
     class PATHFINDER pathfinding

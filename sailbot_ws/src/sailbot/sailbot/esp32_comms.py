@@ -136,7 +136,6 @@ class ESPComms(LifecycleNode):
         self.get_parameters()
 
         self.tt_battery_publisher: Optional[Publisher]
-        self.ballast_pos_publisher: Optional[Publisher]
         self.trim_state_debug_publisher: Optional[Publisher]
         self.damper_state_publisher: Optional[Publisher]
 
@@ -249,8 +248,6 @@ class ESPComms(LifecycleNode):
         else:
             self.get_logger().warn("No ESP32 ports found!")
 
-        self.ballast_pos_publisher = self.create_lifecycle_publisher(Int16, 'current_ballast_position', 10)
-
         self.tt_battery_publisher = self.create_lifecycle_publisher(Int8, 'tt_battery', 10)  # Battery level
         self.trim_state_debug_publisher = self.create_lifecycle_publisher(TrimState, 'trim_state', 10)
         self.damper_state_publisher = self.create_lifecycle_publisher(Int8, 'damper_state', 10)
@@ -268,7 +265,6 @@ class ESPComms(LifecycleNode):
         self.tt_angle_subscriber = self.create_subscription(Int16, 'tt_angle', self.tt_angle_callback, 10)
 
         self.rudder_angle_subscriber = self.create_subscription(Int16, 'rudder_angle', self.rudder_angle_callback, 10)
-        # self.ballast_pwm_subscriber = self.create_subscription(Int16, 'ballast_pwm', self.ballast_pwm_callback, 10)
 
         self.apparent_wind_subscriber = self.create_subscription(Wind, 'apparent_wind_smoothed', self.apparent_wind_callback, 10)
 
@@ -323,7 +319,6 @@ class ESPComms(LifecycleNode):
         self.get_logger().info("Cleaning up...")
         # Destroy subscribers, publishers, and timers
         self.destroy_lifecycle_publisher(self.tt_battery_publisher)
-        self.destroy_lifecycle_publisher(self.ballast_pos_publisher)
         self.destroy_lifecycle_publisher(self.timer_pub)
         self.destroy_lifecycle_publisher(self.damper_state_publisher)
         self.destroy_subscription(self.tt_control_subscriber)
@@ -712,14 +707,6 @@ class ESPComms(LifecycleNode):
         message_string = json.dumps(message)+'\n'
         # self.get_logger().info("Attempting Rudder Send")
         self.ser.write(message_string.encode())
-
-    def ballast_pwm_callback(self, msg: Int16) -> None:
-        #self.get_logger().info("Got ballast position")
-        pwm = msg.data
-        message = {
-            "ballast_pwm": pwm
-        }
-        self.serial_write(message)
     
     def damper_check_callback(self):
         """Check if damper should activate based on IMU data"""
