@@ -15,5 +15,6 @@ The software in this repository interfaces with a number of additional subsystem
 
 - [Trim Tab](https://github.com/wpisailbot/trim_tab_client)
 - [Telemetry Client](https://github.com/wpisailbot/sailbot_telemetry_flutter)
+- [Flutter App](https://github.com/wpisailbot/sailbot_telemetry_flutter) 
 
 If you have any questions, feel free to email gr-sailbot26-27@wpi.edu.
