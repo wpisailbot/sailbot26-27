@@ -26,14 +26,6 @@ def generate_launch_description():
         respawn=True,
         parameters=[config_file_path, {'map_name': LaunchConfiguration('map_name'), 'managed_nodes': ["ballast_control", "wind_smoother", "airmar_reader", "path_follower", "heading_controller", "esp32_comms"]}]
     )
-    ballast_node = LifecycleNode(
-        package='sailbot', 
-        executable='ballast_control', 
-        name='ballast_control',
-        namespace='',
-        respawn=True,
-        output='screen'
-    )
     airmar_node = LifecycleNode(
         package='sailbot', 
         executable='airmar_reader', 
@@ -51,13 +43,6 @@ def generate_launch_description():
         respawn=True,
         parameters=[config_file_path]
     )
-    # pwm_node = LifecycleNode(
-    #     package='sailbot', 
-    #     executable='pwm_controller', 
-    #     name='pwm_controller',
-    #     namespace='',
-    #     output='screen'
-    # )
     esp_node = LifecycleNode(
         package='sailbot', 
         executable='esp32_comms', 
@@ -94,11 +79,6 @@ def generate_launch_description():
         respawn=True,
         parameters=[config_file_path, {'map_name': LaunchConfiguration('map_name')}]
     )
-    # managed_node_names = DeclareLaunchArgument(
-    #     'managed_nodes',
-    #     default_value=["path_follower", "heading_controller"],
-    #     description='The nodes lifecycle manager will control'
-    # )
     state_manager_node = Node(
         package='sailbot', 
         executable='state_manager', 
@@ -128,21 +108,15 @@ def generate_launch_description():
     
     # Launch Description
     ld = launch.LaunchDescription()
-    #ld.add_action(managed_node_names)
     ld.add_action(map_name)
     ld.add_action(network_comms_node)
-    ld.add_action(ballast_node) 
-    #ld.add_action(pwm_node)
     ld.add_action(airmar_node)
     ld.add_action(cv_node)
     ld.add_action(wind_smoother_node)
-
     ld.add_action(esp_node)
     ld.add_action(heading_node)
     ld.add_action(heading_select_node)
-
     ld.add_action(path_follower_node)
-
     ld.add_action(state_manager_node)
     ld.add_action(pathfinder_node)
     return ld
