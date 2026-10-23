@@ -24,7 +24,7 @@ def generate_launch_description():
         namespace='',
         output='screen',
         respawn=True,
-        parameters=[config_file_path, {'map_name': LaunchConfiguration('map_name'), 'managed_nodes': ["ballast_control", "wind_smoother", "airmar_reader", "path_follower", "heading_controller", "esp32_comms"]}]
+        parameters=[config_file_path, {'map_name': LaunchConfiguration('map_name'), 'managed_nodes': ["wind_smoother", "airmar_reader", "path_follower", "heading_controller", "esp32_comms"]}]
     )
     airmar_node = LifecycleNode(
         package='sailbot', 
@@ -86,7 +86,7 @@ def generate_launch_description():
         namespace='',
         output='screen',
         respawn=True,
-        parameters=[{'managed_nodes': ["ballast_control", "wind_smoother", "airmar_reader", "path_follower", "heading_controller", "esp32_comms"]}]
+        parameters=[{'managed_nodes': ["wind_smoother", "airmar_reader", "path_follower", "heading_controller", "esp32_comms"]}]
     )
     pathfinder_node = Node(
         package='sailbot_pathfinding', 

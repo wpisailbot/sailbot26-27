@@ -24,15 +24,7 @@ def generate_launch_description():
         namespace='',
         output='screen',
         respawn=True,
-        parameters=[config_file_path, {'map_name': LaunchConfiguration('map_name'), 'managed_nodes': ["ballast_control", "wind_smoother", "airmar_reader", "path_generator", "path_follower", "heading_controller"]}]
-    )
-    ballast_node = LifecycleNode(
-        package='sailbot', 
-        executable='ballast_control', 
-        name='ballast_control',
-        namespace='',
-        respawn=True,
-        output='screen'
+        parameters=[config_file_path, {'map_name': LaunchConfiguration('map_name'), 'managed_nodes': ["wind_smoother", "airmar_reader", "path_generator", "path_follower", "heading_controller"]}]
     )
     airmar_node = LifecycleNode(
         package='sailbot', 
@@ -115,7 +107,7 @@ def generate_launch_description():
         namespace='',
         output='screen',
         respawn=True,
-        parameters=[{'managed_nodes': ["ballast_control", "wind_smoother", "airmar_reader", "path_generator", "path_follower", "heading_controller"]}]
+        parameters=[{'managed_nodes': ["wind_smoother", "airmar_reader", "path_generator", "path_follower", "heading_controller"]}]
     )
     pathfinder_node = Node(
         package='sailbot_pathfinding', 
@@ -148,7 +140,6 @@ def generate_launch_description():
     #ld.add_action(managed_node_names)
     ld.add_action(map_name)
     ld.add_action(network_comms_node)
-    ld.add_action(ballast_node) 
     #ld.add_action(pwm_node)
     ld.add_action(airmar_node)
     ld.add_action(cv_node)

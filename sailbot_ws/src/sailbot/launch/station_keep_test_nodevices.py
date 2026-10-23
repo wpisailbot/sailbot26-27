@@ -23,15 +23,9 @@ def generate_launch_description():
         name='network_comms',
         namespace='',
         output='screen',
-        parameters=[config_file_path, {'map_name': LaunchConfiguration('map_name'), 'managed_nodes': ["airmar_reader", "esp32_comms", "ballast_control", "wind_smoother", "path_follower", "heading_controller"]}]
+        parameters=[config_file_path, {'map_name': LaunchConfiguration('map_name'), 'managed_nodes': ["airmar_reader", "esp32_comms", "wind_smoother", "path_follower", "heading_controller"]}]
     )
-    ballast_node = LifecycleNode(
-        package='sailbot', 
-        executable='ballast_control', 
-        name='ballast_control',
-        namespace='',
-        output='screen'
-    )
+
     airmar_node = LifecycleNode(
         package='sailbot', 
         executable='airmar_reader', 
@@ -98,7 +92,7 @@ def generate_launch_description():
         name='state_manager',
         namespace='',
         output='screen',
-        parameters=[{'managed_nodes': ["airmar_reader", "esp32_comms", "ballast_control", "wind_smoother", "path_follower", "heading_controller"]}]
+        parameters=[{'managed_nodes': ["airmar_reader", "esp32_comms", "wind_smoother", "path_follower", "heading_controller"]}]
     )
     pathfinder_node = Node(
         package='sailbot_pathfinding', 
@@ -128,7 +122,6 @@ def generate_launch_description():
     #ld.add_action(managed_node_names)
     ld.add_action(map_name)
     ld.add_action(network_comms_node)
-    ld.add_action(ballast_node) 
     #ld.add_action(pwm_node)
     ld.add_action(airmar_node)
     ld.add_action(cv_node)

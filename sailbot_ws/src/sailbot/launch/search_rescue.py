@@ -25,13 +25,6 @@ def generate_launch_description():
         output='screen',
         parameters=[{'map_name': LaunchConfiguration('map_name'), 'managed_nodes': ["wind_smoother", "airmar_reader", "path_follower", "heading_controller", "esp32_comms"]}]
     )
-    ballast_node = LifecycleNode(
-        package='sailbot', 
-        executable='ballast_control', 
-        name='ballast_control',
-        namespace='',
-        output='screen'
-    )
     airmar_node = LifecycleNode(
         package='sailbot', 
         executable='airmar_reader', 
@@ -121,7 +114,6 @@ def generate_launch_description():
     #ld.add_action(managed_node_names)
     ld.add_action(map_name)
     ld.add_action(network_comms_node)
-    #ld.add_action(ballast_node) 
     #ld.add_action(pwm_node)
     ld.add_action(airmar_node)
     ld.add_action(cv_node)
