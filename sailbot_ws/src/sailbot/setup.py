@@ -42,7 +42,6 @@ setup(
             'control_system = sailbot.control_system:main',
             'esp32_comms = sailbot.esp32_comms:main',
             'battery_monitor = sailbot.batteryMonitor:main',
-            'ballast_control = sailbot.ballast_control:main',
             'computer_vision = sailbot.computer_vision:main',
             'network_comms = sailbot.network_comms:main',
             'state_manager = sailbot.state_manager:main',
