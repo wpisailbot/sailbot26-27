@@ -271,7 +271,7 @@ class PathFollower(LifecycleNode):
 
             self.airmar_heading_subscription = self.create_subscription(
                 Float64,
-                'heading',
+                '/airmar_data/heading',
                 self.heading_callback,
                 10,
                 callback_group=self.subscription_callback_group)

@@ -250,7 +250,7 @@ class PathFollower(LifecycleNode):
         self.grid_msg = grid_msg
         self.get_logger().info("Setting map")
         future = self.set_map_cli.call_async(set_map_req)
-        rclpy.spin_until_future_complete(self, future)
+        
 
         self.get_logger().info("Map setup done")
 
@@ -261,13 +261,13 @@ class PathFollower(LifecycleNode):
         self.set_threat_cli = self.create_client(SetThreat, 'set_threat', callback_group=self.service_client_callback_group)
         while not self.set_threat_cli.wait_for_service(timeout_sec=1.0):
             self.get_logger().info('set_threat service not available, waiting again...')
-        
+        rclpy.spin_until_future_complete(self, future)
         self.get_logger().info("Path follower node setup complete")
 
 
     def set_parameters(self) -> None:
         self.declare_parameter('sailbot.pathfinding.min_path_recalculation_interval_seconds', 10.0)
-        self.declare_parameter('map_name', 'quinsigamond')
+        self.declare_parameter('map_name', 'Ithaca')
 
     def get_parameters(self) -> None:
         self.min_path_recalculation_interval_seconds = self.get_parameter('sailbot.pathfinding.min_path_recalculation_interval_seconds').get_parameter_value().double_value
@@ -288,7 +288,7 @@ class PathFollower(LifecycleNode):
 
             self.airmar_heading_subscription = self.create_subscription(
                 Float64,
-                'heading',
+                '/airmar_data/heading',
                 self.heading_callback,
                 10,
                 callback_group=self.subscription_callback_group)
@@ -329,13 +329,14 @@ class PathFollower(LifecycleNode):
                 self.request_replan_callback,
                 10,
                 callback_group = self.subscription_callback_group)
-        
+            
+            self.get_logger().info("Path following node configured")
+            
         except Exception as e:
-            self.get_logger().info("Error in configure")
-            self.get_logger().info(str(e))
+            self.get_logger().warn("Error in configure")
+            self.get_logger().warn(str(e))
             raise(e)
-        
-        self.get_logger().info("Path following node configured")
+    
         
         return super().on_configure(state)
 
@@ -381,12 +382,12 @@ class PathFollower(LifecycleNode):
         #self.get_logger().info("Got new position")
 
         if new_grid_cell != self.current_grid_cell and (current_time-self.last_recalculation_time > self.min_path_recalculation_interval_seconds):
-            self.get_logger().info("Recalculating path")
+            # self.get_logger().info("Recalculating path")
             self.recalculate_path_from_exact_points()
             self.last_recalculation_time = time.time()
 
         if(len(self.exact_points)>0 and abs(msg.latitude-self.exact_points[0].latitude)<0.00004 and abs(msg.longitude-self.exact_points[0].longitude)<0.00004):
-            self.get_logger().info("Removing passed exact point")
+            # self.get_logger().info("Removing passed exact point")
             self.grid_points.pop(0)
             self.exact_points.pop(0)
             # If we've completed the path and want to loop, do so
@@ -405,9 +406,9 @@ class PathFollower(LifecycleNode):
         self.current_grid_cell_publisher.publish(grid_cell_msg)
 
     def get_path(self, start, goal) -> GetPath.Response:
-        self.get_logger().info(f"get_path with {start}, {goal}")
+        # self.get_logger().info(f"get_path with {start}, {goal}")
         if self.wind_angle_deg is None:
-            self.get_logger().info("No wind reported yet, cannot path")
+            # self.get_logger().info("No wind reported yet, cannot path")
             return
         req = GetPath.Request()
         start_point = Point()
@@ -425,15 +426,15 @@ class PathFollower(LifecycleNode):
         if(wind_angle_adjusted<0):
             wind_angle_adjusted += 360
         wind_angle_adjusted%=360
-        self.get_logger().info(f"wind adjusted: {wind_angle_adjusted}")
+        # self.get_logger().info(f"wind adjusted: {wind_angle_adjusted}")
 
 
         req.wind_angle_deg = float(wind_angle_adjusted)
-        self.get_logger().info("Getting path")
+        # self.get_logger().info("Getting path")
         #synchronous service call because ROS2 async doesn't work in callbacks
         result = self.get_path_cli.call(req)
 
-        self.get_logger().info("Path returned!")
+        # self.get_logger().info("Path returned!")
         return result
     
     def calculate_initial_bearing(self, point_A, point_B) -> float:
@@ -477,18 +478,18 @@ class PathFollower(LifecycleNode):
 
             # Calculate the chord length at this radial distance
             chord_length = 2 * sqrt(radius_meters**2 - d**2) if abs(d) <= radius_meters else 0
-            self.get_logger().info(f"Chord length: {chord_length}")
+            # self.get_logger().info(f"Chord length: {chord_length}")
             half_chord = chord_length / 2
 
             # Calculate the bearing for the midpoint of the chord along the wind direction
             radial_bearing = (wind_direction_deg+180)%360
             perpendicular_bearing = (wind_direction_deg + 90) % 360
-            self.get_logger().info(f"perp. bearing: {perpendicular_bearing}")
+            # self.get_logger().info(f"perp. bearing: {perpendicular_bearing}")
 
 
             # Find the midpoint along the wind vector
             midpoint = geodesic(meters=d).destination((center_lat, center_lon), radial_bearing)
-            self.get_logger().info(f"midpoint: {midpoint}")
+            # self.get_logger().info(f"midpoint: {midpoint}")
 
 
             # Calculate the start and end points of the chord perpendicular to the wind direction
@@ -500,8 +501,8 @@ class PathFollower(LifecycleNode):
             #else:
             #    end_point = geodesic(meters=half_chord).destination((midpoint.latitude, midpoint.longitude), perpendicular_bearing)
             #    start_point = geodesic(meters=half_chord).destination((midpoint.latitude, midpoint.longitude), (perpendicular_bearing + 180) % 360)
-            self.get_logger().info(f"start point: {start_point}")
-            self.get_logger().info(f"end point: {end_point}")
+            # self.get_logger().info(f"start point: {start_point}")
+            # self.get_logger().info(f"end point: {end_point}")
 
 
             self.exact_points.append(GeoPoint(latitude=start_point.latitude, longitude=start_point.longitude))
@@ -514,7 +515,7 @@ class PathFollower(LifecycleNode):
 
         self.grid_points = [self.latlong_to_grid_proj(p.latitude, p.longitude, self.bbox, self.image_width, self.image_height) for p in self.exact_points]
 
-        self.get_logger().info(f"grid points: {self.grid_points}")
+        # self.get_logger().info(f"grid points: {self.grid_points}")
 
     def path_to_buoy(self, buoy_pos: BuoyDetectionStamped) -> None:
         self.exact_points.clear()
@@ -547,13 +548,13 @@ class PathFollower(LifecycleNode):
         """
          
         if self.wind_angle_deg is None:
-            self.get_logger().info("No wind reported yet, cannot path")
+            # self.get_logger().info("No wind reported yet, cannot path")
             return
         
         # Reset look-ahead, since previous values are not relevant anymore
         self.previous_position_index = 0
         if len(self.grid_points) == 0:
-            self.get_logger().info("Empty waypoints, will clear path")
+            # self.get_logger().info("Empty waypoints, will clear path")
             self.current_path = GeoPath()
             self.current_path_publisher.publish(self.current_path)
             return
@@ -562,7 +563,7 @@ class PathFollower(LifecycleNode):
         for i in range(len(self.grid_points)-1):
             path_segments.append(self.get_path(self.grid_points[i], self.grid_points[i+1]).path)
         
-        self.get_logger().info("Calculated all path segments")
+        # self.get_logger().info("Calculated all path segments")
         for segment in path_segments:
            segment.poses = self.insert_intermediate_points(segment.poses, 0.8)
 
@@ -609,14 +610,14 @@ class PathFollower(LifecycleNode):
 
     #currently only used to clear points.
     def waypoints_callback(self, msg: WaypointPath) -> None:
-        self.get_logger().info("Got waypoints!")
+        # self.get_logger().info("Got waypoints!")
         self.waypoints = msg
         self.clear_threats()
         self.exact_points = []
         self.grid_points = []
         self.recalculate_path_from_exact_points()
         self.find_current_segment()
-        self.get_logger().info("Ending waypoints callback")
+        # self.get_logger().info("Ending waypoints callback")
 
 
     def single_waypoint_callback(self, msg: Waypoint) -> None:
@@ -649,7 +650,7 @@ class PathFollower(LifecycleNode):
         self.last_grid_points = self.grid_points.copy()
         self.recalculate_path_from_exact_points()
         self.find_current_segment()
-        self.get_logger().info("Ending single waypoint callback")
+        # self.get_logger().info("Ending single waypoint callback")
 
 
     def true_wind_callback(self, msg: Wind) -> None:
@@ -666,9 +667,13 @@ class PathFollower(LifecycleNode):
         # self.get_logger().info("Buoy distance: "+str(dist))
 
         if(dist<2.0):
-            self.get_logger().info("Reached buoy!!!")
+            # self.get_logger().info("Reached buoy!!!")
             bool_msg = Bool()
             bool_msg.data = True
+            self.reached_buoy_publisher.publish(bool_msg)
+        else:
+            bool_msg = Bool()
+            bool_msg.data = False
             self.reached_buoy_publisher.publish(bool_msg)
 
         if(current_time-self.last_buoy_calculation_time>2.0):
@@ -753,7 +758,7 @@ class PathFollower(LifecycleNode):
                 #remove exact points if we've passed them
                 #self.get_logger().info(f"Point is: {point}")
                 if(abs(point.latitude-self.exact_points[0].latitude)<0.00000001 and abs(point.longitude-self.exact_points[0].longitude)<0.00000001):
-                    self.get_logger().info("Removing passed exact point")
+                    # self.get_logger().info("Removing passed exact point")
                     self.grid_points.pop(0)
                     self.exact_points.pop(0)
 
@@ -860,16 +865,16 @@ class PathFollower(LifecycleNode):
         for i in range(length):
             if i<(length-1):
                 num = round(distance(path[i].pose.position.x, path[i].pose.position.y, path[i+1].pose.position.x, path[i+1].pose.position.y)*num_per_unit_distance)
-                self.get_logger().info(f"Num to insert: {num}")
+                # self.get_logger().info(f"Num to insert: {num}")
                 appended.append(path[i])
                 x_step = (path[i+1].pose.position.x-path[i].pose.position.x)/(num+1)
-                self.get_logger().info(f"X step: {x_step}")
+                # self.get_logger().info(f"X step: {x_step}")
                 y_step = (path[i+1].pose.position.y-path[i].pose.position.y)/(num+1)
-                self.get_logger().info(f"y step: {y_step}")
+                # self.get_logger().info(f"y step: {y_step}")
                 for j in range(1, num+1):
                     new_x = path[i].pose.position.x+x_step*j
                     new_y = path[i].pose.position.y+y_step*j
-                    self.get_logger().info(f"New pos: {new_x}, {new_y}")
+                    # self.get_logger().info(f"New pos: {new_x}, {new_y}")
                     new_point = PoseStamped()
                     new_point.pose.position.x = new_x
                     new_point.pose.position.y = new_y

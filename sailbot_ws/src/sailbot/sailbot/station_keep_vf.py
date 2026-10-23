@@ -248,7 +248,6 @@ class PathFollower(LifecycleNode):
         self.grid_msg = grid_msg
         self.get_logger().info("Setting map")
         future = self.set_map_cli.call_async(set_map_req)
-        rclpy.spin_until_future_complete(self, future)
 
         self.get_logger().info("Map setup done")
 
@@ -260,6 +259,7 @@ class PathFollower(LifecycleNode):
         while not self.set_threat_cli.wait_for_service(timeout_sec=1.0):
             self.get_logger().info('set_threat service not available, waiting again...')
         
+        rclpy.spin_until_future_complete(self, future)
         self.get_logger().info("Path follower node setup complete")
 
 
@@ -273,7 +273,7 @@ class PathFollower(LifecycleNode):
         self.declare_parameter('sailbot.navigation.buoy_snap_distance_meters', 10.0)
 
 
-        self.declare_parameter('map_name', 'quinsigamond')
+        self.declare_parameter('map_name', 'ithaca')
 
     def get_parameters(self) -> None:
         self.buoy_rounding_distance_meters = self.get_parameter('sailbot.pathfinding.buoy_rounding_distance_meters').get_parameter_value().double_value
@@ -299,7 +299,7 @@ class PathFollower(LifecycleNode):
 
             self.airmar_heading_subscription = self.create_subscription(
                 Float64,
-                'heading',
+                '/airmar_data/heading',
                 self.heading_callback,
                 10,
                 callback_group=self.subscription_callback_group)
@@ -904,26 +904,26 @@ class PathFollower(LifecycleNode):
             self.get_logger().info("Adding waypoints!")
             self.made_waypoints = True
             p1 = Waypoint()
-            p1.point.latitude = 42.845847
-            p1.point.longitude = -70.977440
+            p1.point.latitude = 42.469667
+            p1.point.longitude = -76.503983
             p1.type = Waypoint.WAYPOINT_TYPE_INTERSECT
             self.single_waypoint_callback(p1)
 
             p2 = Waypoint()
-            p2.point.latitude = 42.845453
-            p2.point.longitude = -70.977357
+            p2.point.latitude = 42.469600
+            p2.point.longitude = -76.504417
             p2.type = Waypoint.WAYPOINT_TYPE_INTERSECT
             self.single_waypoint_callback(p2)
 
             p3 = Waypoint()
-            p3.point.latitude = 42.845555
-            p3.point.longitude = -70.977976
+            p3.point.latitude = 42.469267
+            p3.point.longitude = -76.504383
             p3.type = Waypoint.WAYPOINT_TYPE_INTERSECT
             self.single_waypoint_callback(p3)
 
             p4 = Waypoint()
-            p4.point.latitude = 42.845864
-            p4.point.longitude = -70.977925
+            p4.point.latitude = 42.469283
+            p4.point.longitude = -76.504000
             p4.type = Waypoint.WAYPOINT_TYPE_INTERSECT
             self.single_waypoint_callback(p4)
 

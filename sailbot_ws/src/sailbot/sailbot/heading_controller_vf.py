@@ -39,7 +39,7 @@ def normalRelativeAngle(angle):
             angle+=TWO_PI
     return angle
 
-# Computes if a given bearing is inside a no-sail zone
+# Computes if a given bearing is inside a no-sail
 def is_in_nogo(bearing_rad, wind_angle_rad, nogo_angle_rad):
 
     #opposite_angle = math.fmod(bearing_rad + math.pi, 2 * math.pi)
@@ -122,6 +122,10 @@ class HeadingController(LifecycleNode):
     - The node must be managed by state_manager
 
     """
+    # fuzzy controller tuning parameters
+    heading_error_scale = 1.0
+    rate_of_change_scale = 1.0
+    cte_scale = 1.0
 
     heading = 0
     leeway_angle = 0
@@ -132,7 +136,8 @@ class HeadingController(LifecycleNode):
     wind_direction_deg = 270
     autonomous_mode = 0
     rudder_angle = 0
-    cross_track_error = 0.0 #Stored and used for Fuzzy Controller
+
+    cross_track_error = 0.0
 
     last_heading_error = 0
 
@@ -144,7 +149,7 @@ class HeadingController(LifecycleNode):
     
     allow_tack = True
     too_slow_to_tack = True
-    current_rudder_limit = 15
+    current_rudder_limit = 30
 
     request_tack_timer_duration = 3.0  # seconds
     request_tack_timer: Timer = None
@@ -156,6 +161,9 @@ class HeadingController(LifecycleNode):
     # Set by needs_to_tack()
     current_tack_dir = 1
     current_jibe_dir = 1
+
+    jibe_fallback_active = False
+    jibe_fallback_end_time = 0
 
     collision_avoidance_timer: Timer = None
     collision_avoidance_timer_duration = 1.0
@@ -195,6 +203,9 @@ class HeadingController(LifecycleNode):
         self.declare_parameter('sailbot.heading_control.wind_restriction_replan_cutoff_degrees', 30.0)
         self.declare_parameter('sailbot.heading_control.allow_tack', True)
         self.declare_parameter('sailbot.heading_control.max_rudder_change_per_step', 2.0)
+        self.declare_parameter('sailbot.heading_control.heading_error_scale', 1.0)
+        self.declare_parameter('sailbot.heading_control.rate_of_change_scale', 1.0)
+        self.declare_parameter('sailbot.heading_control.cte_scale', 1.0)
 
 
     def get_parameters(self) -> None:
@@ -207,7 +218,9 @@ class HeadingController(LifecycleNode):
         self.allow_tack = self.get_parameter('sailbot.heading_control.allow_tack').get_parameter_value().bool_value
         self.original_allow_tack = self.allow_tack
         self.max_rudder_change_per_step = self.get_parameter('sailbot.heading_control.max_rudder_change_per_step').get_parameter_value().double_value  
-        
+        self.heading_error_scale = self.get_parameter('sailbot.heading_control.heading_error_scale').get_parameter_value().double_value
+        self.rate_of_change_scale = self.get_parameter('sailbot.heading_control.rate_of_change_scale').get_parameter_value().double_value
+        self.cte_scale = self.get_parameter('sailbot.heading_control.cte_scale').get_parameter_value().double_value
     #lifecycle node callbacks
     def on_configure(self, state: State) -> TransitionCallbackReturn:
         self.get_logger().info("In configure")
@@ -235,7 +248,7 @@ class HeadingController(LifecycleNode):
             10)
         self.airmar_heading_subscription = self.create_subscription(
             Float64,
-            'heading',
+            '/airmar_data/heading',
             self.airmar_heading_callback,
             10)
         self.airmar_track_degrees_true_subscription = self.create_subscription(
@@ -273,6 +286,22 @@ class HeadingController(LifecycleNode):
             'rudder_overshoot_bias',
             self.rudder_overshoot_bias_callback,
             10)
+        self.heading_error_scale_subscription = self.create_subscription(
+            Float64, 
+            'heading_error_scale', 
+            self.heading_error_scale_callback, 
+            10)
+        self.rate_of_change_scale_subscription = self.create_subscription(
+            Float64, 
+            'rate_of_change_scale', 
+            self.rate_of_change_scale_callback, 
+            10)
+        self.cte_scale_subscription = self.create_subscription(
+            Float64, 
+            'cte_scale', 
+            self.cte_scale_callback, 
+            10)
+        
         self.autonomous_mode_subscription = self.create_subscription(AutonomousMode, 'autonomous_mode', self.autonomous_mode_callback, 10)
 
         self.request_tack_subscription = self.create_subscription(
@@ -445,6 +474,18 @@ class HeadingController(LifecycleNode):
         if(time.time()-self.this_tack_start_time > 10.0):
             self.allow_tack = False
 
+            self.get_logger().warn("Tack failed, requesting jibe")
+
+            self.current_jibe_dir = self.current_tack_dir
+            self.request_jibe_publisher.publish(
+                Float32(data=float(self.current_jibe_dir))
+            )
+
+            self.jibe_fallback_active = True
+            self.jibe_fallback_end_time = time.time() + 8.0
+
+            self.this_tack_start_time = time.time()
+
         self.request_tack_override = True
         if self.request_tack_timer is not None:
             self.request_tack_timer.cancel()
@@ -453,10 +494,10 @@ class HeadingController(LifecycleNode):
     def speed_knots_callback(self, msg: Float64):
         if msg.data<2.0:
             self.too_slow_to_tack = True
-            self.current_rudder_limit = 15
+            self.current_rudder_limit = 20
         elif msg.data<4:
             self.too_slow_to_tack = False
-            self.current_rudder_limit = 23
+            self.current_rudder_limit = 25
         else:
             self.too_slow_to_tack = False
             self.current_rudder_limit = 30
@@ -464,7 +505,7 @@ class HeadingController(LifecycleNode):
     def request_tack_timer_callback(self):
         self.allow_tack = self.original_allow_tack
         self.request_tack_override = False
-        self.get_logger().info('Tack timer expired.')
+        # self.get_logger().info('Tack timer expired.')
 
         # Cancel the timer to clean up
         if self.request_tack_timer is not None:
@@ -476,13 +517,13 @@ class HeadingController(LifecycleNode):
             self.path_segment = None
 
     def autonomous_mode_callback(self, msg: AutonomousMode) -> None:
-        self.get_logger().info(f"Got autonomous mode: {msg.mode}")
+        # self.get_logger().info(f"Got autonomous mode: {msg.mode}")
         self.autonomous_mode = msg.mode
         self.rudder_angle = 0 # Reset rudder angle when auto mode changes
 
         #if we're going into a manual rudder mode, reset it to 0 first
         if(msg.mode == AutonomousMode.AUTONOMOUS_MODE_NONE or msg.mode == AutonomousMode.AUTONOMOUS_MODE_TRIMTAB):
-            self.get_logger().info("Resetting rudder angle")
+            # self.get_logger().info("Resetting rudder angle")
             msg = Int16()
             msg.data = int(0)
             self.rudder_angle_publisher.publish(msg)
@@ -511,7 +552,7 @@ class HeadingController(LifecycleNode):
 
         self.heading = heading_degrees
 
-        self.get_logger().info("Heading: {:.2f} degrees".format(heading_degrees))
+        # self.get_logger().info("Heading: {:.2f} degrees".format(heading_degrees))
 
     def airmar_track_degrees_true_callback(self, msg: Float64) -> None:
         difference = msg.data - self.heading
@@ -550,6 +591,18 @@ class HeadingController(LifecycleNode):
 
     def rudder_overshoot_bias_callback(self, msg: Float64) -> None:
         self.rudder_overshoot_bias = msg.data
+
+    def heading_error_scale_callback(self, msg: Float64) -> None:
+        self.get_logger().info(f"Heading error callback!!!: \n{msg}")
+        self.heading_error_scale = msg.data
+
+    def rate_of_change_scale_callback(self, msg: Float64) -> None:
+        self.get_logger().info(f"ROT callback!!!: \n{msg}")
+        self.rate_of_change_scale = msg.data
+
+    def cte_scale_callback(self, msg: Float64) -> None:
+        self.get_logger().info(f"CTE callback!!!: \n{msg}")
+        self.cte_scale = msg.data
     
     def needs_to_tack(self, boat_heading, target_heading, wind_direction) -> bool:
         """
@@ -744,16 +797,24 @@ class HeadingController(LifecycleNode):
             #self.get_logger().info("Not in auto")
             return
         
+        if self.jibe_fallback_active:
+            if time.time() > self.jibe_fallback_end_time:
+                self.jibe_fallback_active = False
+            else:
+                msg = Int16()
+                msg.data = -25 * self.current_jibe_dir
+                self.rudder_angle_publisher.publish(msg)
+                return
         if(self.path_segment is None):
             msg = Int16()
             msg.data = int(0)
             self.rudder_angle_publisher.publish(msg)
-            self.get_logger().info("No target segment")
+            # self.get_logger().info("No target segment")
 
             return
         
         if(self.current_grid_cell is None):
-            self.get_logger().info("Current grid cell is none, cannot operate")
+            # self.get_logger().info("Current grid cell is none, cannot operate")
             return
         
         #self.get_logger().info(f"Current segment: {self.path_segment.start}, {self.path_segment.end}")
@@ -770,12 +831,12 @@ class HeadingController(LifecycleNode):
         
         # If that fails, go straight along the segment
         if not math.isfinite(target_track):
-            self.get_logger().warn(f"Vector field failed! Falling back to straight line. p1: {(self.path_segment.start.x, self.path_segment.start.y)}, p2: {(self.path_segment.end.x,self.path_segment.end.y)}")
+            # self.get_logger().warn(f"Vector field failed! Falling back to straight line. p1: {(self.path_segment.start.x, self.path_segment.start.y)}, p2: {(self.path_segment.end.x,self.path_segment.end.y)}")
             grid_direction_vector = self.direction_vector((self.path_segment.start.x, self.path_segment.start.y), (self.path_segment.end.x,self.path_segment.end.y))
             target_track = self.vector_to_heading(grid_direction_vector[0], grid_direction_vector[1])
         # If that fails, just go to segment endpoint. Could bring us upwind, but that's a later problem.
         if not math.isfinite(target_track):
-            self.get_logger().warn(f"Straight line also failed!")
+            # self.get_logger().warn(f"Straight line also failed!")
             grid_direction_vector = self.direction_vector((self.current_grid_cell.x, self.current_grid_cell.y), (self.path_segment.end.x,self.path_segment.end.y))
             target_track = self.vector_to_heading(grid_direction_vector[0], grid_direction_vector[1])
         
@@ -798,7 +859,7 @@ class HeadingController(LifecycleNode):
 
         target_heading_msg = Float64()
         target_heading_msg.data = target_heading
-        self.get_logger().info(f"Target heading: {target_heading}, CTE: {cte_clamped:.2f}")
+        # self.get_logger().info(f"Target heading: {target_heading}, CTE: {cte_clamped:.2f}")
         self.target_heading_debug_publisher.publish(target_heading_msg)
         
         #self.get_logger().info(f"Target heading: {target_heading}")
@@ -815,16 +876,19 @@ class HeadingController(LifecycleNode):
         self.last_heading_error = heading_error
         self.last_rudder_time = current_time
 
-        # clamp heading rate of change for fuzzy controller
-        heading_rate_of_change_clamped = max(-30.0, min(30.0, heading_rate_of_change))
-
-
+        # clamp and scale inputs for fuzzy controller
         try:
-            self.rudder_simulator.input['heading_error'] = heading_error
-            self.rudder_simulator.input['rate_of_change'] = heading_rate_of_change_clamped
-            self.rudder_simulator.input['cross_track_error'] = cte_clamped
+            heading_error_scaled  = max(-180.0, min(180.0, heading_error * self.heading_error_scale))
+            rate_of_change_scaled = max(-30.0,  min(30.0,  heading_rate_of_change * self.rate_of_change_scale))
+            cte_scaled = max(-3.0,   min(3.0,   cte_clamped * self.cte_scale))
+
+            self.rudder_simulator.input['heading_error']    = heading_error_scaled
+            self.rudder_simulator.input['rate_of_change']   = rate_of_change_scaled
+            self.rudder_simulator.input['cross_track_error'] = cte_scaled
             self.rudder_simulator.compute()
             target_rudder_angle = self.rudder_simulator.output['rudder_angle']
+            #logging line
+            # self.get_logger().info(f"Fuzzy target: {target_rudder_angle:.2f}, current: {self.rudder_angle:.2f}, HE: {heading_error:.2f}, ROC: {rate_of_change_scaled:.2f}, CTE: {cte_scaled:.2f}")
         except Exception as e:
             self.get_logger().error(f"Fuzzy controller error: {e}")
             return
@@ -867,21 +931,21 @@ class HeadingController(LifecycleNode):
             #     self.rudder_angle = 31
             # else:
             #     self.rudder_angle = -31
-            self.rudder_angle = 31*self.current_tack_dir # current_tack_dir should never be anything but 1 or -1
+            self.rudder_angle = 21*self.current_tack_dir # current_tack_dir should never be anything but 1 or -1
             self.request_tack_publisher.publish(Empty())
         
         # Ignore everything else for collision avoidance task
         if self.collision_avoidance_override:
-            self.rudder_angle = 30
+            self.rudder_angle = 20
 
         #self.get_logger().info(f"Computed rudder angle: {rudder_angle}")
         msg = Int16()
         try:
-            msg.data = int(self.rudder_angle)
+            msg.data = -int(self.rudder_angle)
         except Exception as e:
-            self.get_logger().error(f"Invalid rudder value: {self.rudder_angle}")
+            # self.get_logger().error(f"Invalid rudder value: {self.rudder_angle}")
             self.rudder_angle = last_rudder_angle
-            msg.data = int(self.rudder_angle)
+            msg.data = -int(self.rudder_angle)
 
         #self.get_logger().info(f"Rudder angle: {self.rudder_angle}")
 

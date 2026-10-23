@@ -147,7 +147,7 @@ class PathFollower(LifecycleNode):
         self.image_width = occupancy_grid_values.shape[1]
         grid_msg.info.height = occupancy_grid_values.shape[0]
         self.image_height = occupancy_grid_values.shape[0]
-        self.get_logger().info(f"map width: {self.image_width}, height: {self.image_height}")
+        # self.get_logger().info(f"map width: {self.image_width}, height: {self.image_height}")
 
         self.current_grid_cell = self.latlong_to_grid_proj(self.latitude, self.longitude, self.bbox, self.image_width, self.image_height)
 
@@ -155,7 +155,7 @@ class PathFollower(LifecycleNode):
         self.get_logger().info(f"{occupancy_grid_values}")
         grid_msg.data = occupancy_grid_values.flatten().tolist()
 
-        self.get_logger().info("Getting SetMap service")
+        # self.get_logger().info("Getting SetMap service")
         self.set_map_cli = self.create_client(SetMap, 'set_map', callback_group=self.service_client_callback_group)
         while not self.set_map_cli.wait_for_service(timeout_sec=1.0):
             self.get_logger().info('set_map service not available, waiting again...')
@@ -509,7 +509,7 @@ class PathFollower(LifecycleNode):
             for j in range(1, len(segment.poses)):
                 poseStamped = segment.poses[j]
                 point = poseStamped.pose.position
-                self.get_logger().info(f"point: {point}")
+                # self.get_logger().info(f"point: {point}")
                 lat, lon = self.grid_to_latlong_proj(point.x, point.y, self.bbox, self.image_width, self.image_height)
                 geopoint = GeoPoint()
                 geopoint.latitude = lat
@@ -519,7 +519,7 @@ class PathFollower(LifecycleNode):
                 final_grid_path.append(point)
                 k+=1
             #append exact final position
-            self.get_logger().info(f"num exact points: {len(self.exact_points)}, i: {i}")
+            # self.get_logger().info(f"num exact points: {len(self.exact_points)}, i: {i}")
             #final_path.points.append(self.exact_points[i+1])
             #final_grid_path.append(segment.poses[len(segment.poses)-1].pose.position)
             segment_endpoint_indices.append(len(segment.poses)-1)
@@ -527,7 +527,7 @@ class PathFollower(LifecycleNode):
             i+=1
 
 
-        self.get_logger().info(f"New path: {final_path.points}")
+        # self.get_logger().info(f"New path: {final_path.points}")
         self.current_path_publisher.publish(final_path)
         self.current_path = final_path
         self.current_grid_path = final_grid_path
@@ -577,7 +577,7 @@ class PathFollower(LifecycleNode):
         self.get_logger().info("Setting threat")
         #synchronous service call because ROS2 async doesn't work in callbacks
         result = self.set_threat_cli.call(req)
-        self.get_logger().info(f"Threat id returned: {result.assigned_id}")
+        # self.get_logger().info(f"Threat id returned: {result.assigned_id}")
         if(id == -1): # for position adjustment later
             self.waypoint_threat_id_map[(waypoint.point.latitude, waypoint.point.longitude)] = result.assigned_id
         self.threat_ids.append(result.assigned_id)
@@ -615,15 +615,15 @@ class PathFollower(LifecycleNode):
             point = self.current_path.points[i]
             distance = great_circle((self.latitude, self.longitude), (point.latitude, point.longitude)).meters
             # Check if the next point is closer. If so, we probably skipped some points. Don't target them. 
-            next_is_closer = False if i>=num_points else (True if great_circle((self.latitude, self.longitude), (self.current_path.points[i+1].latitude, self.current_path.points[i+1].longitude)).meters<distance else False)
+            next_is_closer = False if i>=num_points-1 else (True if great_circle((self.latitude, self.longitude), (self.current_path.points[i+1].latitude, self.current_path.points[i+1].longitude)).meters<distance else False)
             if(distance>look_ahead_distance and not next_is_closer):
                 self.previous_look_ahead_index = i
-                self.get_logger().info(f"Calulated lookAhead point: {point.latitude}, {point.longitude}")
+                # self.get_logger().info(f"Calulated lookAhead point: {point.latitude}, {point.longitude}")
                 self.target_position_publisher.publish(point)
                 return
             else:
                 #remove waypoints if we've passed the last point in their segment
-                self.get_logger().info(f"Point is: {point}")
+                # self.get_logger().info(f"Point is: {point}")
                 # Floating point errors can cause problems here, apparently. This just checks if things are close *enough*.
                 if(abs(point.latitude-self.exact_points[0].latitude)<0.00000001 and abs(point.longitude-self.exact_points[0].longitude)<0.00000001):
                     self.get_logger().info("Removing passed exact point")
@@ -683,8 +683,8 @@ class PathFollower(LifecycleNode):
 
         lat_res =  abs(bbox['north']-bbox['south'])/image_height
         long_res = abs(bbox['east']-bbox['west'])/image_width
-        self.get_logger().info(f"Lat res: {lat_res}")
-        self.get_logger().info(f"Long res: {long_res}")
+        # self.get_logger().info(f"Lat res: {lat_res}")
+        # self.get_logger().info(f"Long res: {long_res}")
 
         # Calculate the geographical coordinates from the pixel positions
         long_pct = x / image_width
@@ -705,12 +705,12 @@ class PathFollower(LifecycleNode):
         for i in range(length):
             if i<(length-1):
                 num = round(distance(path[i].pose.position.x, path[i].pose.position.y, path[i+1].pose.position.x, path[i+1].pose.position.y)*num_per_unit_distance)
-                self.get_logger().info(f"Num to insert: {num}")
+                # self.get_logger().info(f"Num to insert: {num}")
                 appended.append(path[i])
                 x_step = (path[i+1].pose.position.x-path[i].pose.position.x)/(num+1)
-                self.get_logger().info(f"X step: {x_step}")
+                # self.get_logger().info(f"X step: {x_step}")
                 y_step = (path[i+1].pose.position.y-path[i].pose.position.y)/(num+1)
-                self.get_logger().info(f"y step: {y_step}")
+                # self.get_logger().info(f"y step: {y_step}")
                 for j in range(1, num+1):
                     new_x = path[i].pose.position.x+x_step*j
                     new_y = path[i].pose.position.y+y_step*j

@@ -41,8 +41,8 @@ def generate_launch_description():
     )
     cv_node = Node(
         package='sailbot',
-        executable='buoy_detection',
-        name='buoy_detection',
+        executable='launch_yolo_node.sh',
+        name='buoy_detection_yolo',
         namespace='',
         output='screen',
     )
@@ -63,7 +63,7 @@ def generate_launch_description():
     )
     heading_node = LifecycleNode(
         package='sailbot', 
-        executable='heading_controller', 
+        executable='heading_controller_vf', 
         name='heading_controller',
         namespace='',
         output='screen',

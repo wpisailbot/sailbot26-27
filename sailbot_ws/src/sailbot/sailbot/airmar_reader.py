@@ -178,7 +178,7 @@ class AirmarReader(LifecycleNode): #translates airmar data into json and publish
             msg = Float64()
             try:
                 msg.data = float(value)
-                self.get_logger().info(str(msg.data))
+                # self.get_logger().info(str(msg.data))
                 publisher.publish(msg)
             except Exception as e:
                 #self.get_logger().error(traceback.format_exc())
@@ -199,7 +199,7 @@ class AirmarReader(LifecycleNode): #translates airmar data into json and publish
                 msg.longitude = float(value[1])
                 msg.position_covariance_type = NavSatFix.COVARIANCE_TYPE_UNKNOWN
                 publisher.publish(msg)
-                self.get_logger().info("Published latlong!")
+                # self.get_logger().info("Published latlong!")
             except:
                 return
         else:
@@ -248,7 +248,7 @@ class AirmarReader(LifecycleNode): #translates airmar data into json and publish
                 return {"rate-of-turn":args[1]}
             elif(type_code == 'GLL'):
                 self.get_logger().info("Got GPS data: ")
-                self.get_logger().info(line)
+                # self.get_logger().info(line)
                 #convert from degree decimal minutes to decimal degrees
                 #dd = d + m/60
                 #lat = math.floor(float(args[1]) / 100) + (float(args[1]) % 100)/60.0
@@ -264,7 +264,7 @@ class AirmarReader(LifecycleNode): #translates airmar data into json and publish
                 if(args[4] == 'W'):
                     lon *= -1
                 self.publishIfValid([lat, lon], self.navsat_publisher, NavSatFix)
-                self.get_logger().info("Publishing latlong")
+                # self.get_logger().info("Publishing latlong")
 
                 return {"Latitude":lat,
                         "Latitude-direction":args[2],
@@ -294,7 +294,7 @@ class AirmarReader(LifecycleNode): #translates airmar data into json and publish
                 return ret
 
             elif(type_code == 'HDG'):
-                self.get_logger().info("Publishing heading")
+                # self.get_logger().info("Publishing heading")
                 self.publishIfValid(args[1], self.heading_publisher, Float64)
                 return {"currentHeading":args[1], #degrees
                         "magnetic-deviation":args[2], #degrees
@@ -315,7 +315,7 @@ class AirmarReader(LifecycleNode): #translates airmar data into json and publish
             elif(type_code == 'GRS'): #"The GRS message is used to support the Receiver Autonomous Integrity Monitoring (RAIM)." -- unneeded
                 return {}
             elif(type_code == 'MWD'):
-                self.get_logger().info("Got true wind!")
+                # self.get_logger().info("Got true wind!")
                 self.publishIfValid([args[5], args[1]], self.true_wind_publisher, Wind)
                 return {"trueWind":
                     {"speed": args[5],      #in knots
@@ -325,7 +325,7 @@ class AirmarReader(LifecycleNode): #translates airmar data into json and publish
                 }
             elif(type_code == 'MWV'):
                 self.publishIfValid([args[3], args[1]], self.apparent_wind_publisher, Wind)
-                self.get_logger().info(f"Got apparent wind: {args[3]}, {args[1]}")
+                # self.get_logger().info(f"Got apparent wind: {args[3]}, {args[1]}")
                 return {"apparentWind":
                     {"speed": args[3],       #in knots 
                     "direction": args[1]   #in deg

@@ -151,7 +151,8 @@ class WindSmoother(LifecycleNode):
 
     def true_wind_callback(self, msg: Wind):
         self.update_true_winds(msg.direction)
-        smooth_angle = self.median(self.last_true_winds)
+        #smooth_angle = self.median(self.last_true_winds)
+        smooth_angle = self.circular_mean(self.last_true_winds)
         smooth = Wind()
         smooth.direction = float(smooth_angle)
         smooth.speed = msg.speed

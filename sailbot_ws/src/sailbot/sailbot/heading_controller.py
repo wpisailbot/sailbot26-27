@@ -211,12 +211,12 @@ class HeadingController(LifecycleNode):
             self.target_position = None
 
     def autonomous_mode_callback(self, msg: AutonomousMode) -> None:
-        self.get_logger().info(f"Got autonomous mode: {msg.mode}")
+        # self.get_logger().info(f"Got autonomous mode: {msg.mode}")
         self.autonomous_mode = msg.mode
 
         #if we're going into a manual rudder mode, reset it to 0 first
         if(msg.mode == AutonomousMode.AUTONOMOUS_MODE_NONE or msg.mode == AutonomousMode.AUTONOMOUS_MODE_TRIMTAB):
-            self.get_logger().info("Resetting rudder angle")
+            # self.get_logger().info("Resetting rudder angle")
             msg = Int16()
             msg.data = int(0)
             self.rudder_angle_publisher.publish(msg)
@@ -235,7 +235,7 @@ class HeadingController(LifecycleNode):
     
     def target_position_callback(self, msg: GeoPoint) -> None:
         self.target_position = msg
-        self.get_logger().info("Got targe tpoint")
+        # self.get_logger().info("Got targe tpoint")
         self.compute_rudder_angle()
 
     def true_wind_callback(self, msg: Wind) -> None:
@@ -276,7 +276,7 @@ class HeadingController(LifecycleNode):
             msg = Int16()
             msg.data = int(0)
             self.rudder_angle_publisher.publish(msg)
-            self.get_logger().info("No target point")
+            # self.get_logger().info("No target point")
             return
         
         heading_error = self.getRotationToPointLatLong(self.heading, self.latitude, self.longitude, self.target_position.latitude, self.target_position.longitude)
@@ -285,7 +285,7 @@ class HeadingController(LifecycleNode):
         target_heading_msg.data = target_heading
         self.target_heading_debug_publisher.publish(target_heading_msg)
 
-        self.get_logger().info(f"Heading error: {heading_error} from heading: {self.heading} pos: {self.latitude}, {self.longitude} to pos: {self.target_position.latitude}, {self.target_position.longitude}")
+        # self.get_logger().info(f"Heading error: {heading_error} from heading: {self.heading} pos: {self.latitude}, {self.longitude} to pos: {self.target_position.latitude}, {self.target_position.longitude}")
         #self.rudder_simulator.input['heading_error'] = heading_error
         #self.rudder_simulator.input['rate_of_change'] = 0 # Heading rate-of-change, not sure if Airmar provides this directly. Zero for now.
         #self.rudder_simulator.compute()
@@ -310,7 +310,7 @@ class HeadingController(LifecycleNode):
         #self.get_logger().info(f"Computed rudder angle: {rudder_angle}")
         msg = Int16()
         msg.data = int(self.rudder_angle)
-        self.get_logger().info(f"Rudder angle: {self.rudder_angle}")
+        # self.get_logger().info(f"Rudder angle: {self.rudder_angle}")
         self.rudder_angle_publisher.publish(msg)
 
     #gets necessary rotation from an lat, long, theta pose to face a point

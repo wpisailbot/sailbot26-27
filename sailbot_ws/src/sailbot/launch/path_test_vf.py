@@ -26,14 +26,14 @@ def generate_launch_description():
         respawn=True,
         parameters=[config_file_path, {'map_name': LaunchConfiguration('map_name'), 'managed_nodes': ["wind_smoother", "airmar_reader", "path_generator", "path_follower", "heading_controller", "esp32_comms"]}]
     )
-    ballast_node = LifecycleNode(
-        package='sailbot', 
-        executable='ballast_control', 
-        name='ballast_control',
-        namespace='',
-        respawn=True,
-        output='screen'
-    )
+    # ballast_node = LifecycleNode(
+    #     package='sailbot', 
+    #     executable='ballast_control', 
+    #     name='ballast_control',
+    #     namespace='',
+    #     respawn=True,
+    #     output='screen'
+    # )
     airmar_node = LifecycleNode(
         package='sailbot', 
         executable='airmar_reader', 
@@ -44,7 +44,7 @@ def generate_launch_description():
     )
     cv_node = Node(
         package='sailbot',
-        executable='buoy_detection',
+        executable='launch_yolo_node.sh',
         name='buoy_detection',
         namespace='',
         output='screen',

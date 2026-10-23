@@ -1,5 +1,6 @@
 #!/bin/bash
 echo "Sourcing environment"
+export CTR_TARGET=Hardware
 source /opt/ros/humble/setup.bash
 source /usr/bin/python3
 source /home/sailbot/ros2_ws/install/local_setup.bash

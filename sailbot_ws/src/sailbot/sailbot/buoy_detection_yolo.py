@@ -130,7 +130,7 @@ class BuoyDetectionYOLO(Node):
         self.buoy_position_publisher = self.create_publisher(BuoyDetectionStamped, "buoy_position", 10)
         self.initial_cv_parameters_publisher = self.create_publisher(CVParameters, "initial_cv_parameters", 10)
 
-        self.publish_initial_cv_parameters()
+        # self.publish_initial_cv_parameters()
         self.process_timer = self.create_timer(self.capture_period_seconds, self.capture_and_process)
         self.get_logger().info("YOLO buoy detection setup complete")
 
@@ -351,6 +351,7 @@ class BuoyDetectionYOLO(Node):
             return
 
         self.zed.retrieve_image(self.image_zed, sl.VIEW.LEFT, sl.MEM.CPU)
+        
         self.zed.retrieve_measure(self.depth_zed, sl.MEASURE.DEPTH, sl.MEM.CPU)
 
         frame = self.image_zed.get_data()

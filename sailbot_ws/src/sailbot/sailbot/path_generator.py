@@ -200,8 +200,8 @@ class PathGenerator(LifecycleNode):
         self.set_parameters()
         self.get_parameters()
     
-        self.get_logger().info(f'Map name: {self.map_name}')
-        self.get_logger().info("Getting map image")
+        # self.get_logger().info(f'Map name: {self.map_name}')
+        # self.get_logger().info("Getting map image")
         image, self.bbox = find_and_load_image(get_maps_dir(), self.map_name)
         #cv2.imwrite("/home/sailbot/after_load.jpg", image)
 
@@ -216,7 +216,7 @@ class PathGenerator(LifecycleNode):
         self.image_width = occupancy_grid_values.shape[1]
         grid_msg.info.height = occupancy_grid_values.shape[0]
         self.image_height = occupancy_grid_values.shape[0]
-        self.get_logger().info(f"map width: {self.image_width}, height: {self.image_height}")
+        # self.get_logger().info(f"map width: {self.image_width}, height: {self.image_height}")
 
         self.current_grid_cell = self.latlong_to_grid_proj(self.latitude, self.longitude, self.bbox, self.image_width, self.image_height)
 
@@ -287,7 +287,7 @@ class PathGenerator(LifecycleNode):
 
             self.airmar_heading_subscription = self.create_subscription(
                 Float64,
-                'heading',
+                '/airmar_data/heading',
                 self.heading_callback,
                 10,
                 callback_group=self.subscription_callback_group)
@@ -427,16 +427,16 @@ class PathGenerator(LifecycleNode):
         if(wind_angle_adjusted<0):
             wind_angle_adjusted += 360
         wind_angle_adjusted%=360
-        self.get_logger().info(f"wind adjusted: {wind_angle_adjusted}")
+        # self.get_logger().info(f"wind adjusted: {wind_angle_adjusted}")
 
-        self.get_logger().info(f"Heading: {self.heading}")
+        # self.get_logger().info(f"Heading: {self.heading}")
         current_yaw_deg = (450 - self.heading) % 360
         if (current_yaw_deg < 0):
             current_yaw_deg += 360
-        self.get_logger().info(f"Current yaw: {current_yaw_deg}")
+        # self.get_logger().info(f"Current yaw: {current_yaw_deg}")
         req.current_yaw_deg = float(current_yaw_deg)
         req.wind_angle_deg = float(wind_angle_adjusted)
-        self.get_logger().info("Getting path")
+        # self.get_logger().info("Getting path")
         #synchronous service call because ROS2 async doesn't work in callbacks
         
         try:
@@ -574,7 +574,7 @@ class PathGenerator(LifecycleNode):
                 closestBuoyKey = key
         
         if (waypoint_msg.type == Waypoint.WAYPOINT_TYPE_INTERSECT):
-            self.get_logger().info(f"before: Num grid points: {len(self.grid_points)}, num exact points: {len(self.exact_points)}")
+            # self.get_logger().info(f"before: Num grid points: {len(self.grid_points)}, num exact points: {len(self.exact_points)}")
 
             self.get_logger().info(f"Intersect")
             self.remove_last_points_if_necessary(next_point=(waypoint_msg.point.latitude, waypoint_msg.point.longitude))
@@ -582,7 +582,7 @@ class PathGenerator(LifecycleNode):
             self.last_waypoint_was_rounding_type = False
             self.exact_points.append(waypoint_msg.point)
             self.grid_points.append(self.latlong_to_grid_proj(waypoint_msg.point.latitude, waypoint_msg.point.longitude, self.bbox, self.image_width, self.image_height))
-            self.get_logger().info(f"after: num grid points: {len(self.grid_points)}, num exact points: {len(self.exact_points)}")
+            # self.get_logger().info(f"after: num grid points: {len(self.grid_points)}, num exact points: {len(self.exact_points)}")
 
         else:
 
@@ -597,14 +597,14 @@ class PathGenerator(LifecycleNode):
             if(closestBuoyKey is not None):
                 adjustedPoint = self.current_buoy_positions[closestBuoyKey]
                 threat_id = self.waypoint_threat_id_map[(waypoint_msg.point.latitude, waypoint_msg.point.longitude)]
-                self.get_logger().info(f"Threat of id {threat_id} being modified")
+                # self.get_logger().info(f"Threat of id {threat_id} being modified")
                 self.add_threat(Waypoint(point=self.current_buoy_positions[closestBuoyKey], type=waypoint_msg.type), id=threat_id)
-                self.get_logger().info(f"Snapping point to buoy: {self.current_buoy_positions[closestBuoyKey]}")
+                # self.get_logger().info(f"Snapping point to buoy: {self.current_buoy_positions[closestBuoyKey]}")
             if waypoint_msg.type == Waypoint.WAYPOINT_TYPE_CIRCLE_RIGHT:
                 corners = self.get_square_corners((previousPoint.latitude, previousPoint.longitude), (adjustedPoint.latitude, adjustedPoint.longitude), self.buoy_rounding_distance_meters, "right")
-                self.get_logger().info(f"Circle right {corners}")
+                # self.get_logger().info(f"Circle right {corners}")
             elif waypoint_msg.type == Waypoint.WAYPOINT_TYPE_CIRCLE_LEFT:
-                self.get_logger().info(f"Circle left {corners}")
+                # self.get_logger().info(f"Circle left {corners}")
                 corners = self.get_square_corners((previousPoint.latitude, previousPoint.longitude), (adjustedPoint.latitude, adjustedPoint.longitude), self.buoy_rounding_distance_meters, "left")
 
             self.remove_last_points_if_necessary(next_point=corners[0])

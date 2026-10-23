@@ -11,8 +11,8 @@ from rclpy.subscription import Subscription
 from time import time as get_time
 
 from std_msgs.msg import Int8, Int16, Empty, Float32, Float64, String, Bool
-from sensor_msgs.msg import NavSatFix
 from sailbot_msgs.msg import Wind, AutonomousMode, GeoPath, TrimState, BuoyDetectionStamped
+from sailbot_msgs.srv import RestartNode
 
 import serial
 import json
@@ -20,6 +20,8 @@ import traceback
 import serial.tools.list_ports
 import subprocess
 import can  # pip install python-can
+from phoenix6 import hardware, controls, configs, signals
+            
 
 serial_port = '/dev/ttyTHS1'
 baud_rate = 115200 
@@ -64,21 +66,29 @@ class ESPComms(LifecycleNode):
     :ivar rudder_auto: Indicates if the rudder is in automatic mode.
     :ivar battery_ok: Status of the Jetson battery, indicating if it's within acceptable levels.
     """
+
+
     # damper CAN bus tracking variables
-    can_bus = None
     last_roll_readings = []
     max_roll_samples = 30  
     damper_active = False
 
+    # Damper control mode (0=AUTO, 1=MANUAL_ON, 2=MANUAL_OFF)
+    damper_mode = 0  # Start in AUTO mode
+    last_damper_toggle_time = 0.0  
+    damper_toggle_debounce_time = 1.5
+
     last_roll_values_timeout = 10.0
     oscillation_threshold_deg = 10.0
-    small_oscillation_threshold_deg = 5.0 
+    small_oscillation_threshold_deg = 5
     oscillation_count_threshold = 5
-    oscillation_time_window = 8.0
+    oscillation_time_window = 18.0
     last_oscillation_times = []
     last_small_oscillation_times = []  
     last_roll_direction = 0           # -1 = port, 0 = neutral, 1 = starboard
     speed = 0.0
+    heartbeat = True
+    heartbeat_fail = 0
 
     # Wingsail LED display parameters
     status_timer: Optional[Timer] = None
@@ -101,12 +111,12 @@ class ESPComms(LifecycleNode):
     reach_buoy = False
     last_buoy_detection_time = 0.0
 
-
     last_winds = []
     autonomous_mode = 0
     force_neutral_position = True
     could_be_tacking = False
     last_lift_state = TrimState.TRIM_STATE_MIN_LIFT
+    last_drag_state = TrimState.TRIM_STATE_MIN_LIFT
     rudder_angle_limit_deg = None
 
     request_tack_timer_duration = 3.0  # seconds
@@ -129,6 +139,7 @@ class ESPComms(LifecycleNode):
         self.tt_battery_publisher: Optional[Publisher]
         self.ballast_pos_publisher: Optional[Publisher]
         self.trim_state_debug_publisher: Optional[Publisher]
+        self.damper_state_publisher: Optional[Publisher]
 
         self.error_publisher: Optional[Publisher]
 
@@ -140,6 +151,8 @@ class ESPComms(LifecycleNode):
         self.current_path_subscription: Optional[Subscription]
         self.apparent_wind_subscriber: Optional[Subscription]
         self.roll_subscription: Optional[Subscription]
+        self.speed_subscription: Optional[Subscription]
+        self.damper_mode_subscription: Optional[Subscription]
 
         self.request_tack_subscription: Optional[Subscription]
 
@@ -147,6 +160,11 @@ class ESPComms(LifecycleNode):
 
         self.heartbeat_timer: Optional[Timer]
         self.timer: Optional[Timer]
+        self.last_successful_write = get_time()
+
+        self.restart_cli = self.create_client(RestartNode, 'state_manager/restart_node')
+        while not self.restart_cli.wait_for_service(timeout_sec=1.0):
+            self.get_logger().info('service not available, waiting again...')
 
     def set_parameters(self) -> None:
         self.declare_parameter('sailbot.rudder.angle_limit_deg', 30)
@@ -173,23 +191,50 @@ class ESPComms(LifecycleNode):
                 lambda msg, name=node_name: self.heartbeat_callback(msg, name),
                 10
             )
-        
-        # Initialize CAN bus for damper control
-        # RX 143 Tx145
-        try:
-            self.can_bus = can.interface.Bus(interface='socketcan', channel='vcan0', bitrate=500000)
 
-            self.get_logger().info("CAN bus initialized successfully")  
+        # Initialize CAN bus for damper control
+        try:
+            
+            DAMPER_MOTOR_ID = 1  # ← Change to your Talon FX CAN ID
+            CAN_BUS = "can0"
+            
+            # Create motor object
+            self.damper_motor = hardware.TalonFX(DAMPER_MOTOR_ID, CAN_BUS)
+            
+            # Base configuration
+            # config = configs.TalonFXConfiguration()
+            
+            # IMPORTANT: Set initial neutral mode to COAST (damper OFF by default)
+            # config.motor_output.neutral_mode = signals.NeutralModeValue.COAST
+            # config.motor_output.inverted = signals.InvertedValue.COUNTER_CLOCKWISE_POSITIVE
+            
+            # Safety: Current limits (important for brake mode)
+            # config.current_limits.stator_current_limit = 40.0  # Amps
+            # config.current_limits.stator_current_limit_enable = True
+            
+            # Apply initial config
+            # status = self.damper_motor.configurator.apply(config, timeout_seconds=0.5)
+            
+            # if status.is_ok():
+            #     self.get_logger().info(f"✓ Damper motor initialized : {status}")
+            # else:
+            #     self.get_logger().warn(f"⚠️ Damper config warning: {status}")
+            
+            # Create control request to stop motor at 0% output
+            # (Motor will use whatever neutral mode is currently set)
+            self.damper_motor.set_control(controls.DutyCycleOut(0.0))
+            
         except Exception as e:
-            self.get_logger().error(f"Failed to initialize CAN: {e}")
-    
+            self.get_logger().error(f"Failed to initialize damper motor: {e}")
+            self.damper_motor = None
+        
         self.roll_subscription = self.create_subscription(Float64, '/airmar_data/roll',self.roll_callback, 10)
         self.speed_subscription = self.create_subscription(Float64, '/airmar_data/speed_knots',self.speed_callback, 10)
-        
+        self.damper_mode_subscription = self.create_subscription(Empty, 'damper_mode', self.damper_mode_callback, 10)
+        # uncomment this when the fix works
         self.reach_buoy_subscription = self.create_subscription(Bool, 'reached_buoy', self.reach_buoy_callback, 10)
         
         self.damper_check_timer = self.create_timer(0.5,self.damper_check_callback)
-        # End CAN bus initialization
 
         #reset ESP32 in case it stopped working from brownout
         esp32_ports = find_esp32_serial_ports()
@@ -209,6 +254,7 @@ class ESPComms(LifecycleNode):
 
         self.tt_battery_publisher = self.create_lifecycle_publisher(Int8, 'tt_battery', 10)  # Battery level
         self.trim_state_debug_publisher = self.create_lifecycle_publisher(TrimState, 'trim_state', 10)
+        self.damper_state_publisher = self.create_lifecycle_publisher(Int8, 'damper_state', 10)
 
         self.error_publisher = self.create_lifecycle_publisher(String, f'{self.get_name()}/error', 10)
 
@@ -223,7 +269,7 @@ class ESPComms(LifecycleNode):
         self.tt_angle_subscriber = self.create_subscription(Int16, 'tt_angle', self.tt_angle_callback, 10)
 
         self.rudder_angle_subscriber = self.create_subscription(Int16, 'rudder_angle', self.rudder_angle_callback, 10)
-        self.ballast_pwm_subscriber = self.create_subscription(Int16, 'ballast_pwm', self.ballast_pwm_callback, 10)
+        # self.ballast_pwm_subscriber = self.create_subscription(Int16, 'ballast_pwm', self.ballast_pwm_callback, 10)
 
         self.apparent_wind_subscriber = self.create_subscription(Wind, 'apparent_wind_smoothed', self.apparent_wind_callback, 10)
 
@@ -234,6 +280,7 @@ class ESPComms(LifecycleNode):
             'current_path',
             self.current_path_callback,
             10)
+        
         
         self.request_tack_subscription = self.create_subscription(
             Empty,
@@ -247,12 +294,19 @@ class ESPComms(LifecycleNode):
 
         self.timer_pub = self.create_lifecycle_publisher(Empty, '/heartbeat/trim_tab_comms', 1)
         
-        self.ballast_timer = self.create_timer(0.01, self.ballast_timer_callback)
+        self.get_logger().info("Creating esp_heartbeat timer")
+        self.esp_heartbeat = self.create_timer(1, self.esp_heartbeat_callback)
+        self.get_logger().info("Successfully created esp_heartbeat timer")
 
         try:
-            self.ser = serial.Serial(serial_port, baud_rate, timeout=0.05)
+            self.ser = serial.Serial(serial_port, baud_rate, timeout=0.05, write_timeout=1.0)
         except Exception as e:
             self.get_logger().info(str(e))
+            
+        self.serial_watchdog_timer = self.create_timer(
+            1.0,
+            self.serial_watchdog_callback
+        )
         return TransitionCallbackReturn.SUCCESS
 
     def on_activate(self, state: State) -> TransitionCallbackReturn:
@@ -272,15 +326,20 @@ class ESPComms(LifecycleNode):
         self.destroy_lifecycle_publisher(self.tt_battery_publisher)
         self.destroy_lifecycle_publisher(self.ballast_pos_publisher)
         self.destroy_lifecycle_publisher(self.timer_pub)
+        self.destroy_lifecycle_publisher(self.damper_state_publisher)
         self.destroy_subscription(self.tt_control_subscriber)
         self.destroy_subscription(self.tt_angle_subscriber)
         self.destroy_timer(self.heartbeat_timer)
-        self.destroy_timer(self.ballast_timer)
         self.destroy_timer(self.status_timer)
         self.destroy_timer(self.status_check_timer)
         self.destroy_timer(self.damper_check_timer)
-        if self.can_bus is not None:
-            self.can_bus.shutdown()
+        if hasattr(self, 'damper_motor') and self.damper_motor is not None:
+            try:
+                self.damper_motor.set_control(controls.CoastOut())  # ← Explicit COAST
+                self.get_logger().info("✓ Damper set to COAST mode")
+            except:
+                self.get_logger().error("⚠️ Could not stop damper motor!")
+        # uncomment when we fix the damper
 
         return TransitionCallbackReturn.SUCCESS
 
@@ -299,11 +358,11 @@ class ESPComms(LifecycleNode):
         if len(msg.points) == 0:
             self.force_neutral_position = True
         else:
-            self.get_logger().info("Valid path received, allowing auto trimtab movement")
+            # self.get_logger().info("Valid path received, allowing auto trimtab movement")
             self.force_neutral_position = False
 
     def autonomous_mode_callback(self, msg: AutonomousMode) -> None:
-        self.get_logger().info(f"Got autonomous mode: {msg.mode}")
+        # self.get_logger().info(f"Got autonomous mode: {msg.mode}")
         if(msg.mode == AutonomousMode.AUTONOMOUS_MODE_NONE):
             message = {
                 "state": "manual",
@@ -363,16 +422,39 @@ class ESPComms(LifecycleNode):
 
         msg = None
         trim_state_msg = TrimState()
-
-        force_tack = False
-        if(self.request_tack_override):
-            # Only tack if we're going upwind
-            if (0 <= relative_wind < 100) or (260 <= relative_wind < 365):
-                force_tack = True
+        if self.request_tack_override is True:
+            if self.last_lift_state == TrimState.TRIM_STATE_MAX_LIFT_PORT:
+                    # Max lift starboard
+                msg = {
+                    "state": "max_lift_starboard"
+                }
+                trim_state_msg.state = TrimState.TRIM_STATE_MAX_LIFT_STARBOARD
+                # self.get_logger().info("Max lift starboard")
             else:
-                self.get_logger().warn("Tack requested, but we're going downwind...")
-
-        if 25.0 <= relative_wind < 100 and force_tack is False:
+                    # Max lift port
+                msg = {
+                    "state": "max_lift_port"
+                }
+                trim_state_msg.state = TrimState.TRIM_STATE_MAX_LIFT_PORT
+                #self.get_logger().info("Max lift port")
+        if self.request_jibe_override is True:
+            if self.last_drag_state == TrimState.TRIM_STATE_MAX_DRAG_PORT:
+                    # Max drag starboard
+                msg = {
+                    "state": "max_drag_port"
+                }
+                trim_state_msg.state = TrimState.TRIM_STATE_MAX_DRAG_STARBOARD
+                self.last_drag_state = TrimState.TRIM_STATE_MAX_DRAG_STARBOARD
+                #self.get_logger().info("Max drag starboard")
+            else:
+                    # Max drag port
+                msg = {
+                    "state": "max_drag_starboard" 
+                }
+                trim_state_msg.state = TrimState.TRIM_STATE_MAX_DRAG_PORT
+                self.last_drag_state = TrimState.TRIM_STATE_MAX_DRAG_PORT
+                #self.get_logger().info("Max drag port")
+        elif 25.0 <= relative_wind < 100:
             # Max lift port
             msg = {
                 "state": "max_lift_port"
@@ -380,31 +462,31 @@ class ESPComms(LifecycleNode):
             trim_state_msg.state = TrimState.TRIM_STATE_MAX_LIFT_PORT
             self.last_lift_state = TrimState.TRIM_STATE_MAX_LIFT_PORT
             #self.get_logger().info("Max lift port")
-        elif 100 <= relative_wind < 180 and self.request_jibe_override is False:
+        elif 100 <= relative_wind < 180:
             # Max drag port
             msg = {
-                "state": "max_drag_starboard" # switched for testing, need to swap in trim_tab_client
+                "state": "max_drag_starboard"
             }
             trim_state_msg.state = TrimState.TRIM_STATE_MAX_DRAG_PORT
-            #self.last_state = TrimState.TRIM_STATE_MAX_DRAG_PORT
+            self.last_drag_state = TrimState.TRIM_STATE_MAX_DRAG_PORT
             #self.get_logger().info("Max drag port")
 
-        elif 180 <= relative_wind < 260 and self.request_jibe_override is False:
+        elif 180 <= relative_wind < 260:
             # Max drag starboard
             msg = {
                 "state": "max_drag_port"
             }
             trim_state_msg.state = TrimState.TRIM_STATE_MAX_DRAG_STARBOARD
-            #self.last_state = TrimState.TRIM_STATE_MAX_DRAG_STARBOARD
+            self.last_drag_state = TrimState.TRIM_STATE_MAX_DRAG_STARBOARD
             #self.get_logger().info("Max drag starboard")
-        elif 260 <= relative_wind < 335 and force_tack is False:
+        elif 260 <= relative_wind < 335:
             # Max lift starboard
             msg = {
                 "state": "max_lift_starboard"
             }
             trim_state_msg.state = TrimState.TRIM_STATE_MAX_LIFT_STARBOARD
             self.last_lift_state = TrimState.TRIM_STATE_MAX_LIFT_STARBOARD
-            self.get_logger().info("Max lift starboard")
+            # self.get_logger().info("Max lift starboard")
         else:
             # clear_winds was crashing trimtab during competition. Didn't have time to debug.
 
@@ -447,17 +529,16 @@ class ESPComms(LifecycleNode):
                 "state": "min_lift"
             }
             trim_state_msg.state = TrimState.TRIM_STATE_MIN_LIFT
-            self.get_logger().info("Force neutral")
+            # self.get_logger().info("Force neutral")
         
         if(msg is not None):
             self.trim_state_debug_publisher.publish(trim_state_msg)
-            message_string = json.dumps(msg)+'\n'
-            self.ser.write(message_string.encode())
+            self.serial_write(msg)
         else:
             self.get_logger().info("Trim message is None, taking no action")
 
     def tt_angle_callback(self, msg: Int16) -> None:
-        self.get_logger().info("Sending trimtab angle")
+        # self.get_logger().info("Sending trimtab angle")
         angle = msg.data
         this_time = get_time()
         message = {
@@ -465,12 +546,11 @@ class ESPComms(LifecycleNode):
             "angle": angle,
             "timestamp": this_time
         }
-        message_string = json.dumps(message)+'\n'
-        self.ser.write(message_string.encode())
+        self.serial_write(message)
 
     # Wingsail LED display helper functions
     def send_system_status(self, tailscale_connected: bool, buoy_detected: bool, 
-                       trim_auto: bool, rudder_auto: bool, battery_ok: bool, reach_buoy:bool):
+                       trim_auto: bool, rudder_auto: bool, battery_ok: bool,reach_buoy:bool):
         """Send multiple system status flags to ESP32 in one message"""
         message = {
             "tailscale": tailscale_connected,
@@ -478,13 +558,14 @@ class ESPComms(LifecycleNode):
             "trim_auto": trim_auto,
             "rudder_auto": rudder_auto,
             "battery_ok": battery_ok,
-            "reach_buoy": reach_buoy
+            "reach_buoy": reach_buoy,
         }
-        message_string = json.dumps(message) + '\n'
-        self.ser.write(message_string.encode())
+        self.serial_write(message)
+
 
     
     def check_tailscale(self) -> bool:
+        return
         """Check if Tailscale is connected
         
         Returns:
@@ -527,9 +608,9 @@ class ESPComms(LifecycleNode):
             time_since_heartbeat = current_time - last_time
             
             if time_since_heartbeat > self.heartbeat_timeout:
-                self.get_logger().warn(
-                    f"Node {node_name} is DEAD! Last heartbeat {time_since_heartbeat:.1f}s ago"
-                )
+              #  self.get_logger().warn(
+              #      f"Node {node_name} is DEAD! Last heartbeat {time_since_heartbeat:.1f}s ago"
+               # )
                 return True  # Problem detected!
         
         # All nodes are alive
@@ -565,17 +646,15 @@ class ESPComms(LifecycleNode):
         time_since_buoy = current_time - self.last_buoy_detection_time
         
         # Buoy detected if we saw one in last 5 seconds
-        self.buoy_detected = (time_since_buoy < 5.0)
+        self.buoy_detected = (time_since_buoy < 1.0)
 
-        # self.tailscale_connected = self.check_tailscale()
+        self.tailscale_connected = self.check_tailscale()
         self.battery_ok = not self.battery_ok # waiting for BMS
-        # self.launch_complete = self.check_node_heartbeats()
+        self.launch_complete = self.check_node_heartbeats() #uncommented this line 
         # trim_auto and rudder_auto are already updated in autonomous_mode_callback
         
     def status_timer_callback(self):
         """Called every 1 second by the timer - sends status to ESP32"""
-
-
         self.send_system_status(
             self.tailscale_connected,
             self.buoy_detected,
@@ -632,7 +711,7 @@ class ESPComms(LifecycleNode):
             "rudder_angle": degrees
         }
         message_string = json.dumps(message)+'\n'
-        self.get_logger().info("Attempting Rudder Send")
+        # self.get_logger().info("Attempting Rudder Send")
         self.ser.write(message_string.encode())
 
     def ballast_pwm_callback(self, msg: Int16) -> None:
@@ -641,14 +720,19 @@ class ESPComms(LifecycleNode):
         message = {
             "ballast_pwm": pwm
         }
-        message_string = json.dumps(message)+'\n'
-        self.ser.write(message_string.encode())
+        self.serial_write(message)
     
     def damper_check_callback(self):
         """Check if damper should activate based on IMU data"""
+
+        # Only run in AUTO mode (mode 0)
+        if self.damper_mode != 0:
+            return  # Skip - we're in manual mode
+    
         if self.speed > 10.0:
-            self.damper_active = False
-            self.send_damper_can_command(False)
+            if not self.damper_active:
+                self.damper_active = False
+                self.send_damper_can_command(self.damper_active)
             return
         else:
             # Check if we have enough data
@@ -695,12 +779,15 @@ class ESPComms(LifecycleNode):
                 if amplitude >= self.oscillation_threshold_deg:
                     self.last_oscillation_times.append(current_time)
                     # self.get_logger().info(f"✓ Oscillation detected! Amplitude: {amplitude:.1f}°")
+                    # self.get_logger().info(f"✓ Oscillations: {len(self.last_oscillation_times):.1f}")
                 
                 # Check if it's a SMALL oscillation
-                elif amplitude >= self.small_oscillation_threshold_deg:
+                if amplitude >= self.small_oscillation_threshold_deg:
                     self.last_small_oscillation_times.append(current_time)
                     # self.get_logger().info(
                     #     f"🟡 Small oscillation. Amplitude: {amplitude:.1f}° ")
+                    # self.get_logger().info(
+                    #     f"🟡 Small oscillations: {len(self.last_small_oscillation_times):.1f}")
                 
 
             if current_direction != 0:
@@ -715,10 +802,10 @@ class ESPComms(LifecycleNode):
 
             self.last_small_oscillation_times = [
                 t for t in self.last_small_oscillation_times 
-                if (current_time - t) <= self.small_oscillation_time_window
+                if (current_time - t) <= self.oscillation_time_window
             ]
 
-            # should_activate = False 
+            should_activate = False 
             recent_oscillation_count = len(self.last_oscillation_times)
             recent_small_oscillation_count = len(self.last_small_oscillation_times)
             if recent_oscillation_count >= self.oscillation_count_threshold:
@@ -730,38 +817,85 @@ class ESPComms(LifecycleNode):
             # If state changed, send CAN command
             if should_activate != self.damper_active:
                 self.damper_active = should_activate
-                self.send_damper_can_command(should_activate)
-
-    def send_damper_can_command(self, activate: bool):
-        # TODO: Fill in with actual CAN command based on hardware spec
-        msg = can.Message(
-            arbitration_id=0xC0FFEE, data=[0, 25, 0, 1, 3, 1, 4, 1], is_extended_id=True
-        )
+                self.send_damper_can_command(self.damper_active)
+    
+    def send_damper_can_command(self, switch:bool):
+        if not hasattr(self, 'damper_motor') or self.damper_motor is None:
+            self.get_logger().warn("⚠️ Damper motor not initialized!")
+            return
         
         try:
-            self.can_bus.send(msg)
-            self.get_logger().info(f"Message sent on {self.can_bus.channel_info}")
-        except can.CanError:
-            self.get_logger().error("Message NOT sent")
+            config = configs.TalonFXConfiguration()
+            if switch:
+                # Damper ON = Send StaticBrake control
+                # This actively brakes the motor (shorts the windings)
+                # brake_request = controls.StaticBrake()
+                # self.damper_motor.set_control(brake_request)
+                config.motor_output.neutral_mode = signals.NeutralModeValue.BRAKE
+                self.damper_motor.configurator.apply(config)
 
-        self.tailscale_connected = activate
+                self.get_logger().info("🟢 DAMPER ON (active brake)")
+            else:
+                # Damper OFF = Send NeutralOut in COAST mode
+                # # Motor spins freely with no resistance
+                # coast_request = controls.CoastOut()
+                # self.damper_motor.set_control(coast_request)
+                config.motor_output.neutral_mode = signals.NeutralModeValue.COAST
+                self.damper_motor.configurator.apply(config, timeout_seconds=0.5)
+
+                self.get_logger().info("🔴 DAMPER OFF (coasting)")
+                
+        except Exception as e:
+            self.get_logger().error(f"❌ Failed to control damper: {e}")
+
+    def damper_mode_callback(self, msg: Empty):
+        """Cycle damper mode: AUTO → MANUAL_ON → MANUAL_OFF → AUTO"""
+    
+        # current_time = get_time()
+        
+        # # Debounce check
+        # time_since_last = current_time - self.last_damper_toggle_time
+        # if time_since_last < self.damper_toggle_debounce_time:
+        #     self.get_logger().info(f"⏸️ Debouncing ({time_since_last:.2f}s)")
+        #     return
+        
+        # self.last_damper_toggle_time = current_time
+        
+        # Cycle to next mode
+        self.damper_mode = (self.damper_mode + 1) % 3
+        
+        if self.damper_mode == 0:
+            # AUTO mode - let oscillation detector control it
+            self.get_logger().info("🤖 Mode: AUTO (oscillation-based)")
+            self.damper_state_publisher.publish(Int8(data=0))  # Publish current mode for monitoring
+            # Don't send command - let oscillation callback handle it
+            
+        elif self.damper_mode == 1:
+            # MANUAL ON - force damper on
+            self.damper_active = True
+            self.send_damper_can_command(True)
+            self.get_logger().info("🟢 Mode: MANUAL ON (forced brake)")
+            self.damper_state_publisher.publish(Int8(data=1))  # Publish current mode for monitoring
+        elif self.damper_mode == 2:
+            # MANUAL OFF - force damper off
+            self.damper_active = False
+            self.send_damper_can_command(False)
+            self.get_logger().info("🔴 Mode: MANUAL OFF (forced coast)")
+            self.damper_state_publisher.publish(Int8(data=2))  # Publish current mode for monitoring
+    
+    def speed_callback(self, msg: Float64):
+        self.speed = msg.data
     
     def roll_callback(self, msg: Float64) -> None:
         # self.get_logger().info(f"Got roll: {msg.data}")
         roll_dict = {
                 "roll": msg.data
         }
-        message_string = json.dumps(roll_dict)+'\n'
-        self.ser.write(message_string.encode())
+        self.serial_write(roll_dict)
 
         # Store roll readings for damper control
         current_time = get_time()
         self.last_roll_readings.append((current_time, msg.data))
-        
-
-    def speed_callback(self, msg: Float64):
-        self.speed = msg.data
-        
     
     def request_tack_timer_callback(self):
         self.request_tack_override = False
@@ -784,16 +918,14 @@ class ESPComms(LifecycleNode):
             
 
     def request_tack_callback(self, msg: Empty) -> None:
-        self.request_tack_override = True
-        if self.request_tack_timer is not None:
-            self.request_tack_timer.cancel()
-        self.request_tack_timer = self.create_timer(self.request_tack_timer_duration, self.request_tack_timer_callback)
+        if self.request_tack_timer is None:
+            self.request_tack_override = True
+            self.request_tack_timer = self.create_timer(self.request_tack_timer_duration, self.request_tack_timer_callback)
 
     def request_jibe_callback(self, msg: Float64) -> None:
-        self.request_jibe_override = True
-        if self.request_jibe_timer is not None:
-            self.request_jibe_timer.cancel()
-        self.request_jibe_timer = self.create_timer(self.request_jibe_timer_duration, self.request_jibe_timer_callback)
+        if self.request_jibe_timer is None:
+            self.request_jibe_override = True
+            self.request_jibe_timer = self.create_timer(self.request_jibe_timer_duration, self.request_jibe_timer_callback)
 
         trim_state_msg = TrimState()
         if(msg.data>0):
@@ -816,13 +948,12 @@ class ESPComms(LifecycleNode):
         
         if(msg is not None):
             self.trim_state_debug_publisher.publish(trim_state_msg)
-            message_string = json.dumps(msg)+'\n'
-            self.ser.write(message_string.encode())
+            self.serial_write(msg)
         else:
             self.get_logger().info("Trim message is None, taking no action")
         
-
-    def ballast_timer_callback(self) -> None:
+    
+    def esp_heartbeat_callback(self) -> None:
         """
         Timer callback function that sends a request to the ESP32 for the current position of the ballast and handles the response.
         
@@ -851,37 +982,94 @@ class ESPComms(LifecycleNode):
         """
 
         message = {
-            "get_ballast_pos": True
+            "get_heartbeat": True
         }
-        message_string = json.dumps(message)+'\n'
-        self.ser.write(message_string.encode())
+        self.serial_write(message)
         line = None
         try:
             line = self.ser.readline().decode('utf-8').rstrip()
         except:
+            self.heartbeat_fail = self.heartbeat_fail + 1
+            self.get_logger().warn("Serial Corruption")
             #serial corruption
             pass
         
         if line:
             try:
                 message = json.loads(line)
-
-                pos = Int16()
-                pos.data = message["ballast_pos"]
-                #self.get_logger().info(f"Received position: {pos.data}")
-                if(pos.data == 0):
-                    #self.get_logger().info("Ballast potentiometer is not working!")
-                    pass
+                pos = Bool()
+                pos.data = message["heartbeat"]
+                if(pos.data != self.heartbeat):
+                    self.heartbeat_fail = self.heartbeat_fail + 1
+                    self.get_logger().warn("data doesnt match")
+                    self.heartbeat = not(pos.data)
                 else:
-                    #self.get_logger().info(f"Ballast position: {pos.data}")
-                    pass
-                #publish even if it's broken, ballast_control will detect it
-                self.ballast_pos_publisher.publish(pos)
+                    self.heartbeat = not(self.heartbeat)
+                    self.heartbeat_fail = 0
             except json.JSONDecodeError:
                 self.get_logger().warn("Error decoding JSON")
         else:
-            # self.get_logger().warn("No data received within the timeout period.")
+            self.heartbeat_fail = self.heartbeat_fail + 1
+            self.get_logger().warn("No line")
+            
+        if self.heartbeat_fail > 5:
+            self.get_logger().warn("Restarting ESp32 node")
+
+            restart = RestartNode.Request()
+            restart.node_name = "esp32_comms"
+            future = self.restart_cli.call_async(restart)
+            #rclpy.spin_until_future_complete(self, self.future)
+            self.heartbeat_fail = 0
+            #self.get_logger().info("esp32 restart: " + ", " + future.message)
+
+
+            
+            
+    def restart_serial(self):
+        self.get_logger().warn("Restarting serial connection")
+
+        try:
+            if hasattr(self, "ser") and self.ser:
+                self.ser.close()
+        except Exception:
             pass
+
+        try:
+            self.ser = serial.Serial(
+                serial_port,
+                baud_rate,
+                timeout=0.05,
+                write_timeout=1.0
+            )
+
+            self.ser.reset_input_buffer()
+            self.ser.reset_output_buffer()
+
+            self.get_logger().info("Serial connection restarted")
+
+        except Exception as e:
+            self.get_logger().error(f"Failed reopening serial port: {e}")
+
+    def serial_write(self, message_dict):
+        message_string = json.dumps(message_dict) + '\n'
+
+        try:
+            self.ser.write(message_string.encode())
+            self.last_successful_write = get_time()
+
+        except Exception as e:
+            self.get_logger().error(f"Serial write failed: {e}")
+            self.restart_serial()
+
+    def serial_watchdog_callback(self):
+        age = get_time() - self.last_successful_write
+
+        if age > 5.0:
+            self.get_logger().error(
+                f"No successful serial writes for {age:.1f}s"
+            )
+            self.restart_serial()        
+            
     
     def publish_error(self, string: str):
         error_msg = String()
