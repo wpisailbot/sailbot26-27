@@ -29,7 +29,6 @@ graph TB
         subgraph "Control System"
             HEAD_CTRL_VF[heading_controller_vf<br/>Heading Control<br/>Fuzzy Logic<br/>Vector Field Integration]
             HEAD_CTRL[heading_controller<br/>Basic Heading Control<br/>PID Control<br/>Rudder Commands]
-            BALLAST[ballast_control<br/>Ballast Management<br/>Auto-positioning<br/>Stability Control]
         end
         
         subgraph "Sensor Processing"
@@ -67,7 +66,6 @@ graph TB
     NETWORK -->|single_waypoint| PATH_FOL_VF
     NETWORK -->|autonomous_mode| HEAD_CTRL_VF
     NETWORK -->|control commands| ESP32
-    NETWORK -->|ballast_position| BALLAST
     
     PATH_GEN -->|current_path| PATH_FOL_VF
     PATH_FOL_VF -->|target_position| HEAD_CTRL_VF
@@ -106,7 +104,7 @@ graph TB
     
     class FLUTTER,FLUTTER_COMPONENTS flutter
     class GRPC_PORT grpc
-    class NETWORK,PATH_GEN,PATH_FOL_VF,STATION_VF,SEARCH_VF,COLLISION_VF,HEAD_CTRL_VF,HEAD_CTRL,BALLAST,AIRMAR,WIND_SMOOTH,ESP32 lifecycle
+    class NETWORK,PATH_GEN,PATH_FOL_VF,STATION_VF,SEARCH_VF,COLLISION_VF,HEAD_CTRL_VF,HEAD_CTRL,AIRMAR,WIND_SMOOTH,ESP32 lifecycle
     class STATE_MGR,HEAD_SELECT,FAKE_MOVE,BUOY_DETECT standard
     class PWM,TRIM_TAB,SENSORS hardware
     class PATHFINDER pathfinding
@@ -133,7 +131,6 @@ These nodes are managed by `state_manager` with coordinated startup/shutdown:
 | **heading_controller_vf** | Fuzzy logic heading control | `target_position`, `rudder_angle` |
 | **airmar_reader** | GPS/compass/weather data processing | `airmar_data/*` topics |
 | **wind_smoother** | Wind data filtering and smoothing | `true_wind_smoothed`, `apparent_wind_smoothed` |
-| **ballast_control** | Ballast positioning and stability | `ballast_position` |
 | **esp32_comms** | Trim tab hardware communication | `tt_control`, `trim_state` |
 
 ### ROS2 Standard Nodes
@@ -198,7 +195,7 @@ collision_avoidance_vf → heading_controller_vf → PWM
    - `network_comms` (communication bridge)
    - `path_generator` (planning)
    - `path_follower_vf`, `heading_controller_vf` (control)
-   - `esp32_comms`, `ballast_control` (hardware)
+   - `esp32_comms` (hardware)
 3. **Standard nodes** start independently
 4. **Flutter app** connects via gRPC when ROS2 system is ready
 
