@@ -51,7 +51,7 @@ def find_esp32_serial_ports() -> list:
 
 class ESPComms(LifecycleNode):
     """
-    A ROS2 Lifecycle Node for handling communications with the onboard ESP32 for rudder, trim tab, and ballast control.
+    A ROS2 Lifecycle Node for handling communications with the onboard ESP32 for rudder, and trim tab.
 
     :ivar last_winds: Stores recent wind measurements for processing.
     :ivar autonomous_mode: Current mode of operation, based on 'AutonomousMode' message.

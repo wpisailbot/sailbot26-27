@@ -225,8 +225,6 @@ class HeadingController(LifecycleNode):
     def on_configure(self, state: State) -> TransitionCallbackReturn:
         self.get_logger().info("In configure")
 
-        self.ballast_position_publisher = self.create_lifecycle_publisher(Float64, 'ballast_position', 10)
-
         self.rudder_angle_publisher = self.create_lifecycle_publisher(Int16, 'rudder_angle', 10)
 
         self.target_track_debug_publisher = self.create_lifecycle_publisher(Float64, 'target_track', 10)
@@ -620,11 +618,8 @@ class HeadingController(LifecycleNode):
         - Normalizing all heading and direction values to ensure they fall within a 0-360 degree range.
         - Calculating whether the shortest path from the current to the target heading is clockwise or counterclockwise.
         - Checking if the wind direction lies within the arc between the current and target headings in the chosen direction.
-        - Publishing a position adjustment to the ballast to aid in tacking, if necessary.
-        - Returning True if a tacking maneuver is needed based on the relative positions of the boat heading, target heading, and wind.
+\        - Returning True if a tacking maneuver is needed based on the relative positions of the boat heading, target heading, and wind.
 
-        This function also manages the ballast position by publishing to 'ballast_position_publisher' to optimize the boat's
-        balance and performance during potential tacking maneuvers.
         """
         # Normalize angles
         boat_heading %= 360
@@ -636,17 +631,11 @@ class HeadingController(LifecycleNode):
         if clockwise:
             if boat_heading <= wind_direction < target_heading or \
             (target_heading < boat_heading and (wind_direction > boat_heading or wind_direction < target_heading)):
-                position_msg = Float64()
-                position_msg.data = -0.5
-                self.ballast_position_publisher.publish(position_msg)
                 self.current_tack_dir = -1
                 return True
         else:
             if target_heading <= wind_direction < boat_heading or \
             (boat_heading < target_heading and (wind_direction < boat_heading or wind_direction > target_heading)):
-                position_msg = Float64()
-                position_msg.data = 0.5
-                self.ballast_position_publisher.publish(position_msg)
                 self.current_tack_dir = 1
                 return True
         
@@ -668,11 +657,8 @@ class HeadingController(LifecycleNode):
         - Normalizing all heading and direction values to ensure they fall within a 0-360 degree range.
         - Calculating whether the shortest path from the current to the target heading is clockwise or counterclockwise.
         - Checking if the wind direction lies within the arc between the current and target headings in the chosen direction.
-        - Publishing a position adjustment to the ballast to aid in tacking, if necessary.
         - Returning True if a tacking maneuver is needed based on the relative positions of the boat heading, target heading, and wind.
 
-        This function also manages the ballast position by publishing to 'ballast_position_publisher' to optimize the boat's
-        balance and performance during potential tacking maneuvers.
         """
         # Normalize angles
         boat_heading %= 360
