@@ -941,16 +941,8 @@ class ESPComms(LifecycleNode):
     
     def esp_heartbeat_callback(self) -> None:
         """
-        Timer callback function that sends a request to the ESP32 for the current position of the ballast and handles the response.
-        
-        This function formats a JSON message to request the ballast position, sends it via serial communication, reads the response,
-        decodes the JSON data received, and publishes the ballast position. It handles possible exceptions like serial communication
-        errors or JSON decoding errors and logs them accordingly.
         
         **Process**:
-
-        - **Request**: Sends a JSON message with a request for ballast position.
-        - **Response Handling**: Attempts to read and decode the response. If successful, publishes the ballast position.
         - **Error Handling**: Captures and logs errors related to serial communication or JSON decoding.
         - **Logging**: Logs messages indicating the status of data reception and errors.
         
@@ -959,11 +951,6 @@ class ESPComms(LifecycleNode):
         - The request is sent periodically, triggered by a ROS timer.
         - If no data is received, or if there is an error in the data, logs this as an warning message.
         - Even if the potentiometer is reading strangely (position is 0), the position is published to indicate that a response was received.
-        
-        **Example of Serial Message**:
-
-        - Sent: '{"get_ballast_pos": True}'
-        - Received: '{"ballast_pos": 102}'
 
         """
 
