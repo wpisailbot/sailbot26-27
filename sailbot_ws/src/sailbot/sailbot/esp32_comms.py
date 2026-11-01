@@ -18,7 +18,6 @@ import json
 import traceback
 import serial.tools.list_ports
 import subprocess
-import can  # pip install python-can
 from phoenix6 import hardware, controls, configs, signals
             
 
@@ -68,20 +67,13 @@ class ESPComms(LifecycleNode):
 
 
     # damper CAN bus tracking variables
-    last_roll_readings = []
-    max_roll_samples = 30  
-    damper_active = False
 
     # Damper control mode (0=AUTO, 1=MANUAL_ON, 2=MANUAL_OFF)
-    damper_mode = 0  # Start in AUTO mode
     last_damper_toggle_time = 0.0  
     damper_toggle_debounce_time = 1.5
 
     last_roll_values_timeout = 10.0
-    oscillation_threshold_deg = 10.0
     small_oscillation_threshold_deg = 5
-    oscillation_count_threshold = 5
-    oscillation_time_window = 18.0
     last_oscillation_times = []
     last_small_oscillation_times = []  
     last_roll_direction = 0           # -1 = port, 0 = neutral, 1 = starboard
@@ -137,7 +129,6 @@ class ESPComms(LifecycleNode):
 
         self.tt_battery_publisher: Optional[Publisher]
         self.trim_state_debug_publisher: Optional[Publisher]
-        self.damper_state_publisher: Optional[Publisher]
 
         self.error_publisher: Optional[Publisher]
 
@@ -149,8 +140,6 @@ class ESPComms(LifecycleNode):
         self.current_path_subscription: Optional[Subscription]
         self.apparent_wind_subscriber: Optional[Subscription]
         self.roll_subscription: Optional[Subscription]
-        self.speed_subscription: Optional[Subscription]
-        self.damper_mode_subscription: Optional[Subscription]
 
         self.request_tack_subscription: Optional[Subscription]
 
@@ -189,51 +178,11 @@ class ESPComms(LifecycleNode):
                 lambda msg, name=node_name: self.heartbeat_callback(msg, name),
                 10
             )
-
-        # Initialize CAN bus for damper control
-        try:
-            
-            DAMPER_MOTOR_ID = 1  # ← Change to your Talon FX CAN ID
-            CAN_BUS = "can0"
-            
-            # Create motor object
-            self.damper_motor = hardware.TalonFX(DAMPER_MOTOR_ID, CAN_BUS)
-            
-            # Base configuration
-            # config = configs.TalonFXConfiguration()
-            
-            # IMPORTANT: Set initial neutral mode to COAST (damper OFF by default)
-            # config.motor_output.neutral_mode = signals.NeutralModeValue.COAST
-            # config.motor_output.inverted = signals.InvertedValue.COUNTER_CLOCKWISE_POSITIVE
-            
-            # Safety: Current limits (important for brake mode)
-            # config.current_limits.stator_current_limit = 40.0  # Amps
-            # config.current_limits.stator_current_limit_enable = True
-            
-            # Apply initial config
-            # status = self.damper_motor.configurator.apply(config, timeout_seconds=0.5)
-            
-            # if status.is_ok():
-            #     self.get_logger().info(f"✓ Damper motor initialized : {status}")
-            # else:
-            #     self.get_logger().warn(f"⚠️ Damper config warning: {status}")
-            
-            # Create control request to stop motor at 0% output
-            # (Motor will use whatever neutral mode is currently set)
-            self.damper_motor.set_control(controls.DutyCycleOut(0.0))
-            
-        except Exception as e:
-            self.get_logger().error(f"Failed to initialize damper motor: {e}")
-            self.damper_motor = None
         
         self.roll_subscription = self.create_subscription(Float64, '/airmar_data/roll',self.roll_callback, 10)
-        self.speed_subscription = self.create_subscription(Float64, '/airmar_data/speed_knots',self.speed_callback, 10)
-        self.damper_mode_subscription = self.create_subscription(Empty, 'damper_mode', self.damper_mode_callback, 10)
         # uncomment this when the fix works
         self.reach_buoy_subscription = self.create_subscription(Bool, 'reached_buoy', self.reach_buoy_callback, 10)
         
-        self.damper_check_timer = self.create_timer(0.5,self.damper_check_callback)
-
         #reset ESP32 in case it stopped working from brownout
         esp32_ports = find_esp32_serial_ports()
         if esp32_ports:
@@ -250,7 +199,6 @@ class ESPComms(LifecycleNode):
 
         self.tt_battery_publisher = self.create_lifecycle_publisher(Int8, 'tt_battery', 10)  # Battery level
         self.trim_state_debug_publisher = self.create_lifecycle_publisher(TrimState, 'trim_state', 10)
-        self.damper_state_publisher = self.create_lifecycle_publisher(Int8, 'damper_state', 10)
 
         self.error_publisher = self.create_lifecycle_publisher(String, f'{self.get_name()}/error', 10)
 
@@ -320,20 +268,11 @@ class ESPComms(LifecycleNode):
         # Destroy subscribers, publishers, and timers
         self.destroy_lifecycle_publisher(self.tt_battery_publisher)
         self.destroy_lifecycle_publisher(self.timer_pub)
-        self.destroy_lifecycle_publisher(self.damper_state_publisher)
         self.destroy_subscription(self.tt_control_subscriber)
         self.destroy_subscription(self.tt_angle_subscriber)
         self.destroy_timer(self.heartbeat_timer)
         self.destroy_timer(self.status_timer)
         self.destroy_timer(self.status_check_timer)
-        self.destroy_timer(self.damper_check_timer)
-        if hasattr(self, 'damper_motor') and self.damper_motor is not None:
-            try:
-                self.damper_motor.set_control(controls.CoastOut())  # ← Explicit COAST
-                self.get_logger().info("✓ Damper set to COAST mode")
-            except:
-                self.get_logger().error("⚠️ Could not stop damper motor!")
-        # uncomment when we fix the damper
 
         return TransitionCallbackReturn.SUCCESS
 
@@ -878,10 +817,6 @@ class ESPComms(LifecycleNode):
                 "roll": msg.data
         }
         self.serial_write(roll_dict)
-
-        # Store roll readings for damper control
-        current_time = get_time()
-        self.last_roll_readings.append((current_time, msg.data))
     
     def request_tack_timer_callback(self):
         self.request_tack_override = False
