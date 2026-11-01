@@ -163,7 +163,7 @@ class NetworkComms(LifecycleNode):
 
     **Publishers**:
 
-    - Publishers for various control commands like rudder angle, ballast position, and trim tab angle.
+    - Publishers for various control commands like rudder angle, and trim tab angle.
 
     **Services**:
 
@@ -200,7 +200,6 @@ class NetworkComms(LifecycleNode):
     def __init__(self):
         super().__init__('network_comms')
         self.rudder_control_publisher: Optional[Publisher]
-        self.ballast_position_publisher: Optional[Publisher]
         self.trim_tab_control_publisher: Optional[Publisher]
         self.trim_tab_angle_publisher: Optional[Publisher]
         self.autonomous_mode_publisher: Optional[Publisher]
@@ -256,7 +255,6 @@ class NetworkComms(LifecycleNode):
         self.pwm_control_publisher = self.create_lifecycle_publisher(String, 'pwm_control', 10)
         self.rudder_control_publisher = self.create_lifecycle_publisher(Int16, 'rudder_angle', 10)
 
-        self.ballast_position_publisher = self.create_lifecycle_publisher(Float64, 'ballast_position', 10)
         self.trim_tab_control_publisher = self.create_lifecycle_publisher(Int8, 'tt_control', 10)
         self.trim_tab_angle_publisher = self.create_lifecycle_publisher(Int16, 'tt_angle', 10)
 
@@ -525,7 +523,6 @@ class NetworkComms(LifecycleNode):
     def on_activate(self, state: State) -> TransitionCallbackReturn:
         self.get_logger().info("Activating...")
         # Start publishers or timers
-        #self.ballast_position_publisher.on_activate()
         return super().on_activate(state)
 
     def on_deactivate(self, state: State) -> TransitionCallbackReturn:
@@ -536,7 +533,6 @@ class NetworkComms(LifecycleNode):
         self.get_logger().info("Cleaning up...")
         # Destroy subscribers, publishers, and timers
         self.destroy_lifecycle_publisher(self.pwm_control_publisher)
-        self.destroy_lifecycle_publisher(self.ballast_position_publisher)
         self.destroy_lifecycle_publisher(self.trim_tab_control_publisher)
         self.destroy_lifecycle_publisher(self.trim_tab_angle_publisher)
         self.destroy_lifecycle_publisher(self.autonomous_mode_publisher)
@@ -1011,8 +1007,6 @@ class NetworkComms(LifecycleNode):
         msg = AutonomousMode()
         if command.autonomous_mode == boat_state_pb2.AutonomousMode.AUTONOMOUS_MODE_NONE:
             msg.mode = AutonomousMode.AUTONOMOUS_MODE_NONE
-        elif command.autonomous_mode == boat_state_pb2.AutonomousMode.AUTONOMOUS_MODE_BALLAST:
-            msg.mode = AutonomousMode.AUTONOMOUS_MODE_BALLAST
         elif command.autonomous_mode == boat_state_pb2.AutonomousMode.AUTONOMOUS_MODE_TRIMTAB:
             msg.mode = AutonomousMode.AUTONOMOUS_MODE_TRIMTAB
         elif command.autonomous_mode == boat_state_pb2.AutonomousMode.AUTONOMOUS_MODE_FULL:

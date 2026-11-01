@@ -11,7 +11,6 @@ Welcome to sailbot's documentation!
    :caption: Contents:
 
    airmar_reader
-   ballast_control
    buoy_detection
    esp32_comms
    heading_controller_vf
