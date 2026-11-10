@@ -18,7 +18,7 @@ import json
 import traceback
 import serial.tools.list_ports
 import subprocess
-from phoenix6 import hardware, controls, configs, signals
+from phoenix6 import configs, signals
             
 
 serial_port = '/dev/ttyTHS1'

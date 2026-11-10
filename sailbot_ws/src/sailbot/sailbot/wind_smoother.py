@@ -1,19 +1,15 @@
 #!/usr/bin/env python3
-import json
 import rclpy
 from typing import Optional
 from rclpy.lifecycle import LifecycleNode, LifecycleState, TransitionCallbackReturn
 from rclpy.lifecycle import Publisher
 from rclpy.lifecycle import State
 from rclpy.lifecycle import TransitionCallbackReturn
-from rclpy.timer import Timer
 from rclpy.subscription import Subscription
-from std_msgs.msg import String, Empty, Float64
 
 from sailbot_msgs.msg import Wind
 
 import math
-import time
 import traceback
 
 class WindSmoother(LifecycleNode):

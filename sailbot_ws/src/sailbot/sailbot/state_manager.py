@@ -2,17 +2,11 @@ import rclpy
 from rclpy.node import Node
 from rclpy.client import Client
 from lifecycle_msgs.srv import GetState, ChangeState
-from lifecycle_msgs.msg import State, Transition
-from rclpy.executors import MultiThreadedExecutor, SingleThreadedExecutor
-from rclpy.callback_groups import MutuallyExclusiveCallbackGroup, ReentrantCallbackGroup
+from lifecycle_msgs.msg import Transition
+from rclpy.executors import MultiThreadedExecutor
+from rclpy.callback_groups import ReentrantCallbackGroup
 from sailbot_msgs.srv import RestartNode
-from enum import Enum
 import typing
-from functools import partial
-import asyncio
-from asyncio import Future
-from threading import Event
-import threading
 import traceback
 
 class StateManager(Node):

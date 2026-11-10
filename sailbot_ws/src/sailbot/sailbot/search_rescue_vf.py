@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
 import rclpy
-from std_msgs.msg import String, Float64, Int16, Header, Empty, Bool
+from std_msgs.msg import String, Float64, Header, Empty, Bool
 from sensor_msgs.msg import NavSatFix
 from nav_msgs.msg import OccupancyGrid
 from geometry_msgs.msg import Point, Pose, PoseStamped, Quaternion
 from geographic_msgs.msg import GeoPoint
-from sailbot_msgs.msg import GeoPath, Waypoint, WaypointPath, Wind, GaussianThreat, PathSegment, GeoPathSegment, BuoyDetectionStamped
+from sailbot_msgs.msg import GeoPath, Waypoint, WaypointPath, Wind, PathSegment, GeoPathSegment, BuoyDetectionStamped
 from sailbot_msgs.srv import SetMap, GetPath, SetThreat
 from typing import Optional
 from rclpy.lifecycle import LifecycleNode, LifecycleState, TransitionCallbackReturn
@@ -16,21 +16,18 @@ from lifecycle_msgs.srv import ChangeState
 from lifecycle_msgs.msg import Transition
 from rclpy.timer import Timer
 from rclpy.subscription import Subscription
-from rclpy.node import ParameterType
 from ament_index_python.packages import get_package_share_directory
 import os
 import cv2
 import re
 import numpy as np
-from pyproj import Proj, Transformer
-from shapely.geometry import LineString
+from pyproj import  Transformer
 from shapely.geometry import Point as shapely_point 
 from shapely.affinity import rotate
 import math
 import traceback
 import time
 
-from geopy.distance import great_circle
 from geopy.distance import geodesic
 from geopy.point import Point as geopy_point
 from math import sqrt, radians, degrees, cos, sin

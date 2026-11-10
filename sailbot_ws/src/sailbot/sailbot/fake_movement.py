@@ -1,10 +1,8 @@
 import rclpy
 from rclpy.node import Node
-from geographic_msgs.msg import GeoPoint
 from sensor_msgs.msg import NavSatFix
 from sailbot_msgs.msg import GeoPath
 from random import gauss, uniform
-import time
 
 class FakeMovement(Node):
     def __init__(self):

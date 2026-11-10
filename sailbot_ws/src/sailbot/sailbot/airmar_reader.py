@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 import serial
 import json
-import time
 from typing import Optional
 
 import rclpy
@@ -9,13 +8,10 @@ from rclpy.lifecycle import LifecycleNode, LifecycleState, TransitionCallbackRet
 from rclpy.lifecycle import Publisher
 from rclpy.lifecycle import State
 from rclpy.lifecycle import TransitionCallbackReturn
-from rclpy.timer import Timer
-from rclpy.subscription import Subscription
 
 from std_msgs.msg import String, Float64
 from sensor_msgs.msg import NavSatFix
 from sailbot_msgs.msg import Wind
-import signal
 import logging
 import traceback
 

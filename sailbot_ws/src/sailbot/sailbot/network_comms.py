@@ -1,11 +1,8 @@
 #!/usr/bin/env python3
-import sys
 import rclpy
 from typing import Optional
 from rclpy.callback_groups import MutuallyExclusiveCallbackGroup
 from rclpy.lifecycle import LifecycleNode, LifecycleState, TransitionCallbackReturn
-from lifecycle_msgs.srv import ChangeState
-from lifecycle_msgs.msg import Transition
 from rclpy.lifecycle import Publisher
 from rclpy.lifecycle import State
 from rclpy.lifecycle import TransitionCallbackReturn
@@ -54,8 +51,6 @@ import traceback
 import types
 from typing import Callable, Any
 import signal
-import subprocess
-import threading
 
 from sailbot_msgs.srv import RestartNode
 

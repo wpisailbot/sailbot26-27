@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 import rclpy
-from std_msgs.msg import String, Float64, Int16, Header, Empty
+from std_msgs.msg import String, Float64, Header, Empty
 from sensor_msgs.msg import NavSatFix
 from nav_msgs.msg import OccupancyGrid
 from geometry_msgs.msg import Point, Pose, PoseStamped, Quaternion
@@ -16,7 +16,6 @@ from lifecycle_msgs.srv import ChangeState
 from lifecycle_msgs.msg import Transition
 from rclpy.timer import Timer
 from rclpy.subscription import Subscription
-from rclpy.node import ParameterType
 from ament_index_python.packages import get_package_share_directory
 import os
 import cv2
