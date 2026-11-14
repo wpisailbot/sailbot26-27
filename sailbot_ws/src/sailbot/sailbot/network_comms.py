@@ -247,31 +247,23 @@ class NetworkComms(LifecycleNode):
     #lifecycle node callbacks
     def on_configure(self, state: State) -> TransitionCallbackReturn:
         self.get_logger().info("In configure")
+
         self.pwm_control_publisher = self.create_lifecycle_publisher(String, 'pwm_control', 10)
         self.rudder_control_publisher = self.create_lifecycle_publisher(Int16, 'rudder_angle', 10)
-
         self.trim_tab_control_publisher = self.create_lifecycle_publisher(Int8, 'tt_control', 10)
         self.trim_tab_angle_publisher = self.create_lifecycle_publisher(Int16, 'tt_angle', 10)
-
         self.waypoints_publisher = self.create_lifecycle_publisher(WaypointPath, 'waypoints', 10)
         self.single_waypoint_publisher = self.create_lifecycle_publisher(Waypoint, 'single_waypoint', 10)
         self.replace_waypoint_publisher = self.create_lifecycle_publisher(WaypointPath, 'replace_waypoint', 10)
-
-
         self.autonomous_mode_publisher = self.create_lifecycle_publisher(AutonomousMode, 'autonomous_mode', 10)
-
         self.vf_forward_magnitude_publisher = self.create_lifecycle_publisher(Float64, 'vf_forward_magnitude', 10)
         self.rudder_adjustment_scale_publisher = self.create_lifecycle_publisher(Float64, 'rudder_adjustment_scale', 10)
         self.rudder_overshoot_bias_publisher = self.create_lifecycle_publisher(Float64, 'rudder_overshoot_bias', 10)
-
         self.heading_error_scale_publisher = self.create_lifecycle_publisher(Float64, 'heading_error_scale', 10)
         self.cross_track_error_scale_publisher = self.create_lifecycle_publisher(Float64, 'cte_scale', 10)
         self.rate_of_change_scale_publisher = self.create_lifecycle_publisher(Float64, 'rate_of_change_scale', 10)
-
         self.request_tack_publisher = self.create_lifecycle_publisher(Empty, 'request_tack', 10)
-
         self.damper_mode_publisher = self.create_lifecycle_publisher(Empty, 'damper_mode', 10)
-
         self.cv_parameters_publisher = self.create_lifecycle_publisher(CVParameters, 'cv_parameters', 10)
 
         self.rot_subscription = self.create_subscription(
@@ -361,21 +353,6 @@ class NetworkComms(LifecycleNode):
             'damper_state',
             self.damper_state_callback,
             10)
-        # self.camera_color_image_subscriber = self.create_subscription(
-        #     Image,
-        #     '/zed/zed_node/rgb/image_rect_color',
-        #     self.camera_color_image_callback,
-        #     10)
-        # self.camera_depth_image_subscriber = self.create_subscription(
-        #     Image,
-        #     '/zed/zed_node/depth/depth_registered',
-        #     self.camera_depth_image_callback,
-        #     10)
-        # self.camera_mask_image_subscriber = self.create_subscription(
-        #     AnnotatedImage,
-        #     'cv_mask',
-        #     self.camera_mask_image_callback,
-        #     10)
         self.buoy_position_subscriber = self.create_subscription(
             BuoyDetectionStamped,
             'buoy_position',
@@ -387,24 +364,6 @@ class NetworkComms(LifecycleNode):
             self.rudder_angle_callback,
             10
         )
-        # self.path_segment_debug_subscriber = self.create_subscription(
-        #     GeoPathSegment,
-        #     'current_segment_debug',
-        #     self.path_segment_debug_callback,
-        #     10
-        # )
-        # self.target_heading_debug_subscriber = self.create_subscription(
-        #     Float64,
-        #     'target_heading',
-        #     self.target_heading_debug_callback,
-        #     10
-        # )
-        # self.target_track_debug_subscriber = self.create_subscription(
-        #     Float64,
-        #     'target_track',
-        #     self.target_track_debug_callback,
-        #     10
-        # )
         self.initial_cv_parameters_subscriber = self.create_subscription(
             CVParameters,
             'initial_cv_parameters',
@@ -419,12 +378,9 @@ class NetworkComms(LifecycleNode):
         )
         self.restart_node_client = self.create_client(RestartNode, 'state_manager/restart_node', callback_group=self.callback_group_state)
         #initial dummy values, for testing
-        # self.current_boat_state.latitude = 42.273822
-        # self.current_boat_state.longitude = -71.805967
         self.current_boat_state.latitude = 42.28096
         self.current_boat_state.longitude = -71.80765
-        # self.current_boat_state.latitude = 42.84456
-        # self.current_boat_state.longitude = -70.97622
+
 
         self.current_boat_state.current_heading = 0
         self.current_boat_state.track_degrees_true = 0
@@ -463,27 +419,7 @@ class NetworkComms(LifecycleNode):
                 self.get_logger().fatal(f'Unhandled exception: {e}\n{trace}')
 
         self.current_boat_state.current_autonomous_mode = boat_state_pb2.AutonomousMode.AUTONOMOUS_MODE_NONE
-        # a = boat_state_pb2.Point()
-        # a.latitude = 42.46922
-        # a.longitude = -76.50317
-        # b=boat_state_pb2.Point()
-        # b.latitude = 42.46921
-        # b.longitude = -76.50339
-        # self.current_boat_state.current_path.points.append(a)
-        # self.current_boat_state.current_path.points.append(b)
-        # c = boat_state_pb2.Point()
-        # c.latitude = 42.46902
-        # c.longitude = -76.50331
-        # d=boat_state_pb2.Point()
-        # d.latitude = 42.46921
-        # d.longitude = -76.50331
-        # # e=boat_state_pb2.Point()
-        # # e.latitude = 4.7
-        # # e.longitude = 3.8
-        # self.current_boat_state.previous_positions.points.append(c)
-        # self.current_boat_state.previous_positions.points.append(d)
-        # # self.current_boat_state.previous_positions.points.append(e)
-        
+
         self.last_pwm_heartbeat = -1
         self.last_ctrl_heartbeat = -1
         self.last_tt_heartbeat = -1
@@ -1007,7 +943,7 @@ class NetworkComms(LifecycleNode):
         elif command.autonomous_mode == boat_state_pb2.AutonomousMode.AUTONOMOUS_MODE_FULL:
             msg.mode = AutonomousMode.AUTONOMOUS_MODE_FULL
         self.autonomous_mode_publisher.publish(msg)
-        self.current_boat_state.autonomous_mode = command.autonomous_mode
+        self.current_boat_state.current_autonomous_mode = command.autonomous_mode
         response = control_pb2.ControlResponse()
         response.execution_status = control_pb2.ControlExecutionStatus.CONTROL_EXECUTION_SUCCESS
         return response
@@ -1161,7 +1097,7 @@ class NetworkComms(LifecycleNode):
         self.get_logger().info("Got cross track error scale command")
 
         msg = Float64()
-        msg.data = command.crossTrackErrorScale
+        msg.data = command.cte
         self.cross_track_error_scale_publisher.publish(msg)
 
         response = control_pb2.ControlResponse()
