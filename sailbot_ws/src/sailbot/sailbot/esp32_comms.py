@@ -17,17 +17,10 @@ import serial
 import json
 import traceback
 import serial.tools.list_ports
-import subprocess
-from phoenix6 import configs, signals
-            
+import subprocess            
 
 serial_port = '/dev/ttyTHS1'
 baud_rate = 115200 
-
-# Local variables
-angle = 0
-wind_dir = 0.0
-battery_level = 100
 
 def find_esp32_serial_ports() -> list:
     # Common VID:PID pairs for USB-to-Serial adapters used with ESP32
@@ -65,19 +58,6 @@ class ESPComms(LifecycleNode):
     :ivar battery_ok: Status of the Jetson battery, indicating if it's within acceptable levels.
     """
 
-
-    # damper CAN bus tracking variables
-
-    # Damper control mode (0=AUTO, 1=MANUAL_ON, 2=MANUAL_OFF)
-    last_damper_toggle_time = 0.0  
-    damper_toggle_debounce_time = 1.5
-
-    last_roll_values_timeout = 10.0
-    small_oscillation_threshold_deg = 5
-    last_oscillation_times = []
-    last_small_oscillation_times = []  
-    last_roll_direction = 0           # -1 = port, 0 = neutral, 1 = starboard
-    speed = 0.0
     heartbeat = True
     heartbeat_fail = 0
 
@@ -646,170 +626,6 @@ class ESPComms(LifecycleNode):
         message_string = json.dumps(message)+'\n'
         # self.get_logger().info("Attempting Rudder Send")
         self.ser.write(message_string.encode())
-    
-    def damper_check_callback(self):
-        """Check if damper should activate based on IMU data"""
-
-        # Only run in AUTO mode (mode 0)
-        if self.damper_mode != 0:
-            return  # Skip - we're in manual mode
-    
-        if self.speed > 10.0:
-            if not self.damper_active:
-                self.damper_active = False
-                self.send_damper_can_command(self.damper_active)
-            return
-        else:
-            # Check if we have enough data
-            if len(self.last_roll_readings) < 5:
-                self.get_logger().info("no enough data")
-                return
-            
-            current_time, current_roll = self.last_roll_readings[-1]
-
-            # Clean up old readings (remove values older than timeout)
-            cutoff_time = current_time - self.last_roll_values_timeout
-            self.last_roll_readings = [
-                (t, v) for t, v in self.last_roll_readings 
-                if t >= cutoff_time
-            ]
-
-            roll_values = [v for t, v in self.last_roll_readings]
-            neutral_zone = 1.0  # degrees
-            if current_roll > neutral_zone:
-                current_direction = 1  # Starboard
-            elif current_roll < -neutral_zone:
-                current_direction = -1  # Port
-            else:
-                current_direction = 0  # Neutral
-            # self.get_logger().info(f"current direction: {current_direction}")
-
-            # if current != 0, and different directions, then we crossed zero.
-            crossed_zero = (current_direction != 0 and self.last_roll_direction != current_direction)
-
-            if crossed_zero:
-                # Find peak from previous direction
-                if self.last_roll_direction == 1:
-                    peak = max(roll_values)  # Was starboard, find max
-                elif self.last_roll_direction == -1:
-                    peak = min(roll_values)
-                else:  # last_roll_direction == 0 (first crossing)
-                    # Use most extreme value (furthest from 0)
-                    peak = max(roll_values, key=abs)
-                
-                # Calculate amplitude
-                amplitude = abs(peak - current_roll)
-                
-                # Check if amplitude is large enough
-                if amplitude >= self.oscillation_threshold_deg:
-                    self.last_oscillation_times.append(current_time)
-                    # self.get_logger().info(f"✓ Oscillation detected! Amplitude: {amplitude:.1f}°")
-                    # self.get_logger().info(f"✓ Oscillations: {len(self.last_oscillation_times):.1f}")
-                
-                # Check if it's a SMALL oscillation
-                if amplitude >= self.small_oscillation_threshold_deg:
-                    self.last_small_oscillation_times.append(current_time)
-                    # self.get_logger().info(
-                    #     f"🟡 Small oscillation. Amplitude: {amplitude:.1f}° ")
-                    # self.get_logger().info(
-                    #     f"🟡 Small oscillations: {len(self.last_small_oscillation_times):.1f}")
-                
-
-            if current_direction != 0:
-                # update direction
-                self.last_roll_direction = current_direction
-            
-            # Clean up old oscillations
-            self.last_oscillation_times = [
-                t for t in self.last_oscillation_times 
-                if (current_time - t) <= self.oscillation_time_window
-            ]
-
-            self.last_small_oscillation_times = [
-                t for t in self.last_small_oscillation_times 
-                if (current_time - t) <= self.oscillation_time_window
-            ]
-
-            should_activate = False 
-            recent_oscillation_count = len(self.last_oscillation_times)
-            recent_small_oscillation_count = len(self.last_small_oscillation_times)
-            if recent_oscillation_count >= self.oscillation_count_threshold:
-                should_activate = True
-            if recent_small_oscillation_count < self.oscillation_count_threshold:
-                should_activate = False
-
-            # self.get_logger().info(f"Damper command: {should_activate}")
-            # If state changed, send CAN command
-            if should_activate != self.damper_active:
-                self.damper_active = should_activate
-                self.send_damper_can_command(self.damper_active)
-    
-    def send_damper_can_command(self, switch:bool):
-        if not hasattr(self, 'damper_motor') or self.damper_motor is None:
-            self.get_logger().warn("⚠️ Damper motor not initialized!")
-            return
-        
-        try:
-            config = configs.TalonFXConfiguration()
-            if switch:
-                # Damper ON = Send StaticBrake control
-                # This actively brakes the motor (shorts the windings)
-                # brake_request = controls.StaticBrake()
-                # self.damper_motor.set_control(brake_request)
-                config.motor_output.neutral_mode = signals.NeutralModeValue.BRAKE
-                self.damper_motor.configurator.apply(config)
-
-                self.get_logger().info("🟢 DAMPER ON (active brake)")
-            else:
-                # Damper OFF = Send NeutralOut in COAST mode
-                # # Motor spins freely with no resistance
-                # coast_request = controls.CoastOut()
-                # self.damper_motor.set_control(coast_request)
-                config.motor_output.neutral_mode = signals.NeutralModeValue.COAST
-                self.damper_motor.configurator.apply(config, timeout_seconds=0.5)
-
-                self.get_logger().info("🔴 DAMPER OFF (coasting)")
-                
-        except Exception as e:
-            self.get_logger().error(f"❌ Failed to control damper: {e}")
-
-    def damper_mode_callback(self, msg: Empty):
-        """Cycle damper mode: AUTO → MANUAL_ON → MANUAL_OFF → AUTO"""
-    
-        # current_time = get_time()
-        
-        # # Debounce check
-        # time_since_last = current_time - self.last_damper_toggle_time
-        # if time_since_last < self.damper_toggle_debounce_time:
-        #     self.get_logger().info(f"⏸️ Debouncing ({time_since_last:.2f}s)")
-        #     return
-        
-        # self.last_damper_toggle_time = current_time
-        
-        # Cycle to next mode
-        self.damper_mode = (self.damper_mode + 1) % 3
-        
-        if self.damper_mode == 0:
-            # AUTO mode - let oscillation detector control it
-            self.get_logger().info("🤖 Mode: AUTO (oscillation-based)")
-            self.damper_state_publisher.publish(Int8(data=0))  # Publish current mode for monitoring
-            # Don't send command - let oscillation callback handle it
-            
-        elif self.damper_mode == 1:
-            # MANUAL ON - force damper on
-            self.damper_active = True
-            self.send_damper_can_command(True)
-            self.get_logger().info("🟢 Mode: MANUAL ON (forced brake)")
-            self.damper_state_publisher.publish(Int8(data=1))  # Publish current mode for monitoring
-        elif self.damper_mode == 2:
-            # MANUAL OFF - force damper off
-            self.damper_active = False
-            self.send_damper_can_command(False)
-            self.get_logger().info("🔴 Mode: MANUAL OFF (forced coast)")
-            self.damper_state_publisher.publish(Int8(data=2))  # Publish current mode for monitoring
-    
-    def speed_callback(self, msg: Float64):
-        self.speed = msg.data
     
     def roll_callback(self, msg: Float64) -> None:
         # self.get_logger().info(f"Got roll: {msg.data}")
