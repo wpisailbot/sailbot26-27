@@ -156,7 +156,10 @@ class PathGenerator(LifecycleNode):
 
     buoy_rounding_distance_meters = None
     min_path_recalculation_interval_seconds = None
-
+    replan_distance_from_path = None
+    replan_wind_shift_degrees = None
+    last_replan_check_time = 0.0
+    wind_angle_at_plan = None
     threat_ids = []
 
     previous_position_index = 0
@@ -254,6 +257,8 @@ class PathGenerator(LifecycleNode):
         self.declare_parameter('sailbot.pathfinding.buoy_threat_size_map_units', 1.0)
         self.declare_parameter('sailbot.pathfinding.buoy_threat_guassian_intensity', 0.6)
         self.declare_parameter('sailbot.pathfinding.min_path_recalculation_interval_seconds', 10.0)
+        self.declare_parameter('sailbot.pathfinding.replan_distance_from_path', 25.0)
+        self.declare_parameter('sailbot.pathfinding.replan_wind_shift_degrees', 10.0)
         self.declare_parameter('sailbot.navigation.look_ahead_distance_meters', 5.0)
         self.declare_parameter('sailbot.navigation.look_ahead_increase_per_knot', 1.0)
         self.declare_parameter('sailbot.navigation.buoy_snap_distance_meters', 10.0)
@@ -265,6 +270,8 @@ class PathGenerator(LifecycleNode):
         self.buoy_threat_size_map_units = self.get_parameter('sailbot.pathfinding.buoy_threat_size_map_units').get_parameter_value().double_value
         self.buoy_threat_guassian_intensity = self.get_parameter('sailbot.pathfinding.buoy_threat_guassian_intensity').get_parameter_value().double_value
         self.min_path_recalculation_interval_seconds = self.get_parameter('sailbot.pathfinding.min_path_recalculation_interval_seconds').get_parameter_value().double_value
+        self.replan_distance_from_path = self.get_parameter('sailbot.pathfinding.replan_distance_from_path').get_parameter_value().double_value
+        self.replan_wind_shift_degrees = self.get_parameter('sailbot.pathfinding.replan_wind_shift_degrees').get_parameter_value().double_value
         self.look_ahead_distance_meters = self.get_parameter('sailbot.navigation.look_ahead_distance_meters').get_parameter_value().double_value
         self.look_ahead_increase_per_knot = self.get_parameter('sailbot.navigation.look_ahead_increase_per_knot').get_parameter_value().double_value
         self.buoy_snap_distance_meters = self.get_parameter('sailbot.navigation.buoy_snap_distance_meters').get_parameter_value().double_value
@@ -383,7 +390,7 @@ class PathGenerator(LifecycleNode):
         current_time = time.time()
         #self.get_logger().info("Got new position")
 
-        if new_grid_cell != self.current_grid_cell and (current_time-self.last_recalculation_time > self.min_path_recalculation_interval_seconds):
+        if self.should_replan(current_time):
             self.get_logger().info("Recalculating path")
             self.recalculate_path_from_exact_points()
             self.last_recalculation_time = time.time()
@@ -403,6 +410,65 @@ class PathGenerator(LifecycleNode):
         grid_cell_msg.x = float(new_grid_cell[0])
         grid_cell_msg.y = float(new_grid_cell[1])
         self.current_grid_cell_publisher.publish(grid_cell_msg)
+
+    def distance_to_current_path(self) -> Optional[float]:
+        """
+        Calculates the the shortest distance from the boat's current position to the current path.
+
+        :return: The distance in meters, or None if there are no points in the current path.
+        """
+        points = self.current_path.points
+        if len(points) == 0:
+            return None
+
+        m_per_deg_lat = 11132.0  # Approximate meters per degree latitude
+        m_per_deg_lon = 11132.0 * math.cos(math.radians(self.latitude))  # Approximate meters per degree longitude
+
+        xy = np.array([[(p.longitude - self.longitude)*m_per_deg_lon, (p.latitude - self.latitude)*m_per_deg_lat] for p in points])
+        if len(xy) == 1: #if only one point return distance to that point
+            return float(np.hypot(xy[0][0], xy[0][1]))
+        a = xy[:-1]
+        ab = xy[1:] - a
+        seg_len_sq = np.einsum('ij,ij->i', ab, ab)
+        seg_len_sq = np.where(seg_len_sq == 0, 1e-12, seg_len_sq)  # Avoid division by zero
+        t = np.clip(-np.einsum('ij,ij->i', a, ab) / seg_len_sq, 0.0, 1.0)
+        closest = a + ab * t[:, None]
+        return float(np.hypot(closest[:, 0], closest[:, 1]).min())
+
+    def should_replan(self, now: float) -> bool:
+        """
+        Determines whether the path should be recalculated based on time since last recalculation, 
+        distance from path, and wind direction changes.
+
+        :param now: The current time in seconds.
+        :return: True if the path should be recalculated, False otherwise.
+        """
+        if (now - self.last_recalculation_time) <= self.min_path_recalculation_interval_seconds:
+            return False
+
+        if now - self.last_replan_check_time < 1.0:
+            return False
+        self.last_replan_check_time = now
+
+        if len(self.grid_points) == 0:
+            return False
+
+        #If there is not currently a path
+        if len(self.current_path.points) == 0:
+            return True
+
+        #If wind shift is too large, replan
+        if self.wind_angle_deg is None or self.wind_angle_at_plan is None:
+            wind_shift = abs((self.wind_angle_deg - self.wind_angle_at_plan + 180) % 360 - 180)
+            if wind_shift > self.replan_wind_shift_degrees:
+                return True
+
+        #if Drifted off the path by too much, replan
+        distance_off_path = self.distance_to_current_path()
+        if distance_off_path is not None and distance_off_path > self.replan_distance_from_path:
+            return True
+
+        return False
 
     def get_path(self, start, goal) -> GetPath.Response:
         self.get_logger().info(f"get_path with {start}, {goal}")
@@ -702,6 +768,7 @@ class PathGenerator(LifecycleNode):
         self.current_path_publisher.publish(final_path)
         self.current_path = final_path
         self.current_grid_path = final_grid_path
+        self.wind_angle_at_plan = self.wind_angle_deg
         #self.segment_endpoint_indices = segment_endpoint_indices
 
     #currently only used to clear points.

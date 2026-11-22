@@ -78,3 +78,17 @@ network_comms:
     sailbot:
       cv:
         buoy_circularity_threshold: 0.6
+
+path_generator:
+  ros__parameters:
+    sailbot:
+      pathfinding:
+        buoy_rounding_distance_meters: 5.0
+        buoy_threat_size_map_units: 1.0
+        buoy_threat_guassian_intensity: 0.8
+        min_path_recalculation_interval_seconds: 10.0
+        replan_distance_from_path: 10.0 #replan if cross track error exceeds this much since last plan
+        replan_wind_shift_degrees: 25.0 #replan if wind changes by this much since last plan
+      navigation:
+        buoy_snap_distance_meters: 10.0
+        loop_path: True
